@@ -37,6 +37,7 @@ import (
 	"github.com/aws/aws-node-termination-handler/pkg/monitor/sqsevent"
 	"github.com/aws/aws-node-termination-handler/pkg/node"
 	"github.com/aws/aws-node-termination-handler/pkg/observability"
+	"github.com/aws/aws-node-termination-handler/pkg/spotguard"
 	"github.com/aws/aws-node-termination-handler/pkg/webhook"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
@@ -203,7 +204,20 @@ func main() {
 			monitoringFns[scheduledMaintenance] = imdsScheduledEventMonitor
 		}
 		if nthConfig.EnableRebalanceMonitoring || nthConfig.EnableRebalanceDraining {
-			imdsRebalanceMonitor := rebalancerecommendation.NewRebalanceRecommendationMonitor(imds, interruptionChan, nthConfig.NodeName)
+			// Initialize SpotGuard if enabled
+			var spotGuardInstance *spotguard.SpotGuard
+			if nthConfig.EnableSpotGuard {
+				cfg := aws.NewConfig().WithRegion(nthConfig.AWSRegion).WithEndpoint(nthConfig.AWSEndpoint).WithSTSRegionalEndpoint(endpoints.RegionalSTSEndpoint)
+				sess := session.Must(session.NewSessionWithOptions(session.Options{
+					Config:            *cfg,
+					SharedConfigState: session.SharedConfigEnable,
+				}))
+				asgClient := autoscaling.New(sess)
+				spotGuardInstance = spotguard.NewSpotGuard(asgClient, &nthConfig)
+				log.Info().Msgf("Spot Guard enabled - Spot ASG: %s, On-Demand ASG: %s", nthConfig.SpotAsgName, nthConfig.OnDemandAsgName)
+			}
+
+			imdsRebalanceMonitor := rebalancerecommendation.NewRebalanceRecommendationMonitor(imds, interruptionChan, nthConfig.NodeName, spotGuardInstance)
 			monitoringFns[rebalanceRecommendation] = imdsRebalanceMonitor
 		}
 	}
