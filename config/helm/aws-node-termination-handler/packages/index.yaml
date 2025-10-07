@@ -3,7 +3,7 @@ entries:
   aws-node-termination-handler:
   - apiVersion: v2
     appVersion: 1.0.0
-    created: "2025-10-07T18:22:28.131103932+07:00"
+    created: "2025-10-07T18:28:32.682867992+07:00"
     description: A Helm chart for the AWS Node Termination Handler.
     digest: e88f12ec0a876e0b171ca01551bd8bca30a0567130319d85a2e924a62479d94a
     home: https://github.com/aws/aws-node-termination-handler/
@@ -23,11 +23,11 @@ entries:
     - https://github.com/aws/aws-node-termination-handler/
     type: application
     urls:
-    - https://raw.githubusercontent.com/your-username/aws-node-termination-handler/main/config/helm/aws-node-termination-handler/packages/aws-node-termination-handler-1.0.1.tgz
+    - https://raw.githubusercontent.com/BananaSorcery/aws-node-termination-handler/main/config/helm/aws-node-termination-handler/packages/aws-node-termination-handler-1.0.1.tgz
     version: 1.0.1
   - apiVersion: v2
     appVersion: 1.0.0
-    created: "2025-10-07T18:22:28.129862759+07:00"
+    created: "2025-10-07T18:28:32.681024089+07:00"
     description: A Helm chart for the AWS Node Termination Handler.
     digest: 7275861d60128fb508ed7d8f6ccfe97346c419706963f6d7cf4da052cf34affc
     home: https://github.com/aws/aws-node-termination-handler/
@@ -47,6 +47,6 @@ entries:
     - https://github.com/aws/aws-node-termination-handler/
     type: application
     urls:
-    - https://raw.githubusercontent.com/your-username/aws-node-termination-handler/main/config/helm/aws-node-termination-handler/packages/aws-node-termination-handler-1.0.0.tgz
+    - https://raw.githubusercontent.com/BananaSorcery/aws-node-termination-handler/main/config/helm/aws-node-termination-handler/packages/aws-node-termination-handler-1.0.0.tgz
     version: 1.0.0
-generated: "2025-10-07T18:22:28.12659391+07:00"
+generated: "2025-10-07T18:28:32.679832552+07:00"
