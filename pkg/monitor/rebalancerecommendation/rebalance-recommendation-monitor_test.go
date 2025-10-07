@@ -62,7 +62,7 @@ func TestMonitor_Success(t *testing.T) {
 			"Expected description to contain: "+startTime+" but is actually: "+result.Description)
 	}()
 
-	rebalanceNoticeMonitor := rebalancerecommendation.NewRebalanceRecommendationMonitor(imds, drainChan, nodeName)
+	rebalanceNoticeMonitor := rebalancerecommendation.NewRebalanceRecommendationMonitor(imds, drainChan, nodeName, nil)
 	err := rebalanceNoticeMonitor.Monitor()
 	h.Ok(t, err)
 }
@@ -80,7 +80,7 @@ func TestMonitor_MetadataParseFailure(t *testing.T) {
 	imds := ec2metadata.New(server.URL, 1)
 	nodeName := "test-node"
 
-	rebalanceNoticeMonitor := rebalancerecommendation.NewRebalanceRecommendationMonitor(imds, drainChan, nodeName)
+	rebalanceNoticeMonitor := rebalancerecommendation.NewRebalanceRecommendationMonitor(imds, drainChan, nodeName, nil)
 	err := rebalanceNoticeMonitor.Monitor()
 	h.Assert(t, err != nil, "Failed to return error metadata parse fails")
 }
@@ -102,7 +102,7 @@ func TestMonitor_404Response(t *testing.T) {
 	imds := ec2metadata.New(server.URL, 1)
 	nodeName := "test-node"
 
-	rebalanceNoticeMonitor := rebalancerecommendation.NewRebalanceRecommendationMonitor(imds, drainChan, nodeName)
+	rebalanceNoticeMonitor := rebalancerecommendation.NewRebalanceRecommendationMonitor(imds, drainChan, nodeName, nil)
 	err := rebalanceNoticeMonitor.Monitor()
 	h.Ok(t, err)
 }
@@ -124,7 +124,7 @@ func TestMonitor_500Response(t *testing.T) {
 	imds := ec2metadata.New(server.URL, 1)
 	nodeName := "test-node"
 
-	rebalanceNoticeMonitor := rebalancerecommendation.NewRebalanceRecommendationMonitor(imds, drainChan, nodeName)
+	rebalanceNoticeMonitor := rebalancerecommendation.NewRebalanceRecommendationMonitor(imds, drainChan, nodeName, nil)
 	err := rebalanceNoticeMonitor.Monitor()
 	h.Assert(t, err != nil, "Failed to return error when 500 response")
 }
@@ -147,7 +147,7 @@ func TestMonitor_NoticeTimeParseFailure(t *testing.T) {
 	imds := ec2metadata.New(server.URL, 1)
 	nodeName := "test-node"
 
-	rebalanceNoticeMonitor := rebalancerecommendation.NewRebalanceRecommendationMonitor(imds, drainChan, nodeName)
+	rebalanceNoticeMonitor := rebalancerecommendation.NewRebalanceRecommendationMonitor(imds, drainChan, nodeName, nil)
 	err := rebalanceNoticeMonitor.Monitor()
 	h.Assert(t, err != nil, "Failed to return error when failed to parse time")
 }
