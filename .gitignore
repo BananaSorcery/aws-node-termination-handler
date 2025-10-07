@@ -16,6 +16,9 @@
 # Output of the go build for the cmd binary
 /node-termination-handler
 
+### Ignore local example yaml files ###
+config/helm/aws-node-termination-handler/example/yaml
+
 ### Go Patch ###
 /vendor/
 /Godeps/
