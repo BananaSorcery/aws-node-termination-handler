@@ -15,8 +15,10 @@ image:
 # Service account configuration
 serviceAccount:
   create: true
+  # The name of the service account to use. If namenot set and create is true, a name is generated using fullname template
+  name:
   annotations: {}
-  name: ""
+  #   eks.amazonaws.com/role-arn: arn:aws:iam::043701111869:role/aws-node-termination-handler-spot-guard
 
 # RBAC configuration
 rbac:
