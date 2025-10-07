@@ -12,6 +12,16 @@ This is a forked and enhanced version of the AWS Node Termination Handler with t
 
 ## 📦 Installation
 
+### Test if index.yaml is accessible
+
+```bash
+# Test if index.yaml is accessible
+curl -I https://raw.githubusercontent.com/BananaSorcery/aws-node-termination-handler/main/config/helm/aws-node-termination-handler/packages/index.yaml
+
+# Test if package is accessible
+curl -I https://raw.githubusercontent.com/BananaSorcery/aws-node-termination-handler/main/config/helm/aws-node-termination-handler/packages/aws-node-termination-handler-1.0.0.tgz
+```
+
 ### Add Helm Repository
 ```bash
 helm repo add aws-nth-enhanced https://raw.githubusercontent.com/BananaSorcery/aws-node-termination-handler/main/config/helm/aws-node-termination-handler/packages/
