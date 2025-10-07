@@ -52,7 +52,7 @@ export ON_DEMAND_ASG_NAME=my-ondemand-asg
 export SPOT_GUARD_SCALE_TIMEOUT=120
 export SPOT_GUARD_CAPACITY_CHECK_TIMEOUT=120
 export ENABLE_REBALANCE_MONITORING=true
-export AWS_REGION=us-east-1
+export AWS_REGION=
 ```
 
 Or using CLI flags:
@@ -65,7 +65,7 @@ Or using CLI flags:
   --spot-guard-scale-timeout=120 \
   --spot-guard-capacity-check-timeout=120 \
   --enable-rebalance-monitoring=true \
-  --aws-region=us-east-1 \
+  --aws-region= \
   --node-name=$NODE_NAME
 ```
 

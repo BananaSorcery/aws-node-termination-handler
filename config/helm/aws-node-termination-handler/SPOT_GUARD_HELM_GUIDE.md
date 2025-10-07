@@ -9,7 +9,7 @@ helm upgrade --install aws-node-termination-handler \
   --namespace kube-system \
   oci://public.ecr.aws/aws-ec2/helm/aws-node-termination-handler \
   --set enableSqsTerminationDraining=true \
-  --set queueURL=https://sqs.us-east-1.amazonaws.com/123456789012/my-queue \
+  --set queueURL=https://sqs..amazonaws.com/123456789012/my-queue \
   --set spotGuard.enabled=true \
   --set spotGuard.spotASGName=my-spot-asg \
   --set spotGuard.onDemandASGName=my-ondemand-asg
@@ -225,7 +225,7 @@ helm upgrade aws-node-termination-handler \
 helm install aws-node-termination-handler \
   --namespace kube-system \
   --set enableSqsTerminationDraining=true \
-  --set queueURL=https://sqs.us-east-1.amazonaws.com/123456789012/my-queue \
+  --set queueURL=https://sqs..amazonaws.com/123456789012/my-queue \
   --set spotGuard.enabled=true \
   --set spotGuard.spotASGName=eks-spot-nodes \
   --set spotGuard.onDemandASGName=eks-ondemand-fallback \
@@ -238,7 +238,7 @@ helm install aws-node-termination-handler \
 helm install aws-node-termination-handler \
   --namespace kube-system \
   --set enableSqsTerminationDraining=true \
-  --set queueURL=https://sqs.us-east-1.amazonaws.com/123456789012/my-queue \
+  --set queueURL=https://sqs..amazonaws.com/123456789012/my-queue \
   --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=arn:aws:iam::123456789012:role/NTHRole \
   --set spotGuard.enabled=true \
   --set spotGuard.spotASGName=eks-spot-nodes \
@@ -252,7 +252,7 @@ helm install aws-node-termination-handler \
 helm install aws-node-termination-handler \
   --namespace kube-system \
   --set enableSqsTerminationDraining=true \
-  --set queueURL=https://sqs.us-east-1.amazonaws.com/123456789012/my-queue \
+  --set queueURL=https://sqs..amazonaws.com/123456789012/my-queue \
   --set spotGuard.enabled=true \
   --set spotGuard.spotASGName=eks-spot-nodes \
   --set spotGuard.onDemandASGName=eks-ondemand-fallback \
