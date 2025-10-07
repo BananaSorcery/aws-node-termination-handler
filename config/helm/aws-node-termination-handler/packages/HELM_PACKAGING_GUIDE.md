@@ -59,7 +59,7 @@ mv aws-node-termination-handler-1.0.0.tgz packages/
 ### Step 2: Generate Index File
 ```bash
 # Generate index.yaml for GitHub hosting
-helm repo index packages/ --url https://raw.githubusercontent.com/BananaSorcery/aws-node-termination-handler/main/config/helm/aws-node-termination-handler/packages/
+helm repo index . --url https://raw.githubusercontent.com/your-username/aws-node-termination-handler/main/config/helm/aws-node-termination-handler/packages/
 ```
 
 ### Step 3: Verify Index File
