@@ -1,0 +1,105 @@
+# Example Helm values for AWS Node Termination Handler with Spot Guard enabled
+# This configuration enables automatic on-demand scale-down when spot capacity is restored
+
+## Basic Configuration
+# enableSqsTerminationDraining: true
+# queueURL: https://sqs.us-east-1.amazonaws.com/123456789012/my-termination-queue
+
+image:
+  repository: public.ecr.aws/aws-ec2/aws-node-termination-handler
+  # Overrides the image tag whose default is {{ printf "v%s" .Chart.AppVersion }}
+  tag: ""
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+## Spot Guard Configuration
+spotGuard:
+  # Enable automatic on-demand scale-down
+  enabled: true
+  
+  # REQUIRED: Name of your spot instance Auto Scaling Group
+  spotASGName: "my-eks-spot-nodegroup"
+  
+  # REQUIRED: Name of your on-demand instance Auto Scaling Group (fallback)
+  onDemandASGName: "my-eks-ondemand-fallback-nodegroup"
+  
+  ## Timing Configuration
+  
+  # Minimum time to wait before considering on-demand scale-down
+  # This prevents premature scale-down before spot capacity stabilizes
+  # Conservative: 15m, Balanced: 10m, Aggressive: 5m
+  minimumWaitDuration: "10m"
+  
+  # How often to check for scale-down opportunities
+  # More frequent = faster response, but more API calls
+  checkInterval: "30s"
+  
+  # How long spot capacity must be stable before trusting it
+  # Prevents scaling down if spot is flapping
+  # Conservative: 5m, Balanced: 2m, Aggressive: 1m
+  spotStabilityDuration: "2m"
+  
+  ## Safety Configuration
+  
+  # Maximum cluster utilization percentage before scale-down
+  # Ensures cluster has enough buffer capacity after removing on-demand
+  # Conservative: 70, Balanced: 75, Aggressive: 80
+  maxClusterUtilization: 75
+  
+  # Maximum time to wait for pod eviction during drain
+  podEvictionTimeout: "5m"
+  
+  ## Maintenance Configuration
+  
+  # How often to cleanup old events from memory
+  cleanupInterval: "10m"
+  
+  # Maximum age of events to keep in tracking
+  maxEventAge: "24h"
+
+## Service Account with IAM Role (required for SQS and ASG operations)
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/NTHRole
+
+## Example IAM Policy (attach to the role above):
+# {
+#   "Version": "2012-10-17",
+#   "Statement": [
+#     {
+#       "Effect": "Allow",
+#       "Action": [
+#         "autoscaling:DescribeAutoScalingGroups",
+#         "autoscaling:SetDesiredCapacity",
+#         "autoscaling:DescribeTags",
+#         "autoscaling:DescribeAutoScalingInstances",
+#         "ec2:DescribeInstances",
+#         "sqs:ReceiveMessage",
+#         "sqs:DeleteMessage"
+#       ],
+#       "Resource": "*"
+#     }
+#   ]
+# }
+
+## Other Recommended Settings
+nodeTerminationGracePeriod: 120
+podTerminationGracePeriod: -1
+deleteLocalData: true
+ignoreDaemonSets: true
+emitKubernetesEvents: true
+
+## Resource Limits (adjust based on cluster size)
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+## Logging (set to debug for troubleshooting)
+logLevel: info
+jsonLogging: true
+
