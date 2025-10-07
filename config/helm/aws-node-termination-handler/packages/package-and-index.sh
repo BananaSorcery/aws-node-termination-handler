@@ -5,7 +5,7 @@
 set -e
 
 # Configuration
-CHART_DIR="."
+CHART_DIR=".."
 PACKAGES_DIR="./packages"
 REPO_URL="https://raw.githubusercontent.com/BananaSorcery/aws-node-termination-handler/main/config/helm/aws-node-termination-handler/packages/"
 CHART_NAME="aws-node-termination-handler"
