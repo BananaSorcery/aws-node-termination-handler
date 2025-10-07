@@ -1,0 +1,97 @@
+# RECOMMENDED Configuration for Best Reliability
+# This configuration provides comprehensive node termination handling with Spot Guard
+
+# Global configuration
+global:
+  region: us-west-2
+
+# Image configuration
+image:
+  repository: public.ecr.aws/aws-ec2/aws-node-termination-handler
+  tag: "v1.21.0"
+  pullPolicy: IfNotPresent
+
+# Service account and RBAC
+serviceAccount:
+  create: true
+rbac:
+  create: true
+
+# Security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Resource limits
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Logging configuration
+logLevel: info
+jsonLogging: true
+
+# IMDS Configuration - COMPREHENSIVE for Maximum Reliability
+enableSqsTerminationDraining: false
+enableSpotInterruptionDraining: true    # CRITICAL - Handle spot terminations
+enableRebalanceMonitoring: true         # CRITICAL - For Spot Guard
+enableRebalanceDraining: true           # CRITICAL - Process rebalance events
+enableScheduledEventDraining: true      # RECOMMENDED - Handle maintenance
+enableScheduledEventMonitoring: true   # RECOMMENDED - Monitor maintenance
+enableASGLifecycleDraining: false       # OPTIONAL - Only if using ASG lifecycle hooks
+
+# Spot Guard Configuration - Cost Optimization
+spotGuard:
+  enabled: true
+  spotASGName: "your-spot-asg"           # UPDATE WITH YOUR ASG NAME
+  onDemandASGName: "your-ondemand-asg"  # UPDATE WITH YOUR ASG NAME
+  minimumWaitDuration: "10m"             # Wait 10 minutes before checking
+  checkInterval: "30s"                   # Check every 30 seconds
+  spotStabilityDuration: "5m"           # Require 5 minutes of stability
+  maxClusterUtilization: 70             # Keep 30% cluster buffer
+  podEvictionTimeout: "5m"              # 5 minute pod eviction timeout
+  cleanupInterval: "10m"                # Clean up old events every 10 minutes
+  maxEventAge: "24h"                    # Keep events for 24 hours
+
+# Node termination configuration
+nodeTerminationGracePeriod: 120
+deleteLocalData: true
+ignoreDaemonSets: true
+podTerminationGracePeriod: 30
+
+# AWS configuration
+awsRegion: us-west-2
+metadataURL: http://169.254.169.254
+metadataTries: 3
+
+# Additional reliability settings
+checkASGTagBeforeDraining: true
+checkTagBeforeDraining: true
+managedAsgTag: "aws-node-termination-handler/managed"
+managedTag: "aws-node-termination-handler/managed"
+
+# Production annotations
+podAnnotations:
+  reliability.spotguard.io/enabled: "true"
+  reliability.spotguard.io/mode: "comprehensive"
+
+# Production labels
+podLabels:
+  app.kubernetes.io/component: "node-termination-handler"
+  reliability.spotguard.io/version: "v1.0.0"
+
+

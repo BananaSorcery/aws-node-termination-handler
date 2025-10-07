@@ -1,0 +1,122 @@
+# Example values file for testing Spot Guard with IMDS mode
+# This file is designed for testing with: helm template aws-node-termination-handler . -f SPOT_GUARD_IMDS_TEST.yaml
+
+# Global configuration
+global:
+  region: us-east-1
+
+# Image configuration
+image:
+  repository: public.ecr.aws/aws-ec2/aws-node-termination-handler
+  tag: "v1.21.0"
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+# Service account configuration
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# RBAC configuration
+rbac:
+  create: true
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Security context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Resource limits
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Pod annotations
+podAnnotations: {}
+
+# Pod labels
+podLabels: {}
+
+# Environment variables
+env: []
+
+# Logging configuration
+logLevel: debug
+jsonLogging: true
+
+# IMDS Configuration (Spot Guard uses IMDS mode)
+enableSqsTerminationDraining: false     # DISABLE SQS mode
+
+enableRebalanceMonitoring: true         # CRITICAL - For Spot Guard
+enableRebalanceDraining: true           # CRITICAL - Process rebalance events
+
+enableSpotInterruptionDraining: true    # CRITICAL - Handle spot terminations - Drain node if not draining already
+
+# Spot Guard Configuration
+spotGuard:
+  enabled: true
+  spotASGName: "my-spot-asg"
+  onDemandASGName: "my-ondemand-asg"
+  minimumWaitDuration: "5m"
+  checkInterval: "30s"
+  spotStabilityDuration: "2m"
+  maxClusterUtilization: 75
+  podEvictionTimeout: "5m"
+  cleanupInterval: "10m"
+  maxEventAge: "24h"
+
+# Node termination configuration
+nodeTerminationGracePeriod: 120
+podTerminationGracePeriod: -1
+deleteLocalData: true
+ignoreDaemonSets: true
+podTerminationGracePeriod: 30
+
+# AWS configuration
+awsRegion: us-west-2
+metadataURL: http://169.254.169.254
+metadataTries: 3
+
+# Node name (will be set automatically in real deployment)
+nodeName: ""
+
+# Additional configuration for testing
+terminationGracePeriod: 120
+deleteLocalData: true
+ignoreDaemonSets: true
+podTerminationGracePeriod: 30
+
+# Testing-specific annotations
+podAnnotations:
+  test.spotguard.io/enabled: "true"
+  test.spotguard.io/mode: "imds"
+
+# Testing-specific labels
+podLabels:
+  app.kubernetes.io/component: "spot-guard"
+  test.spotguard.io/version: "v1.0.0"

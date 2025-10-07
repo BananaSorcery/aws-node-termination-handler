@@ -2,8 +2,15 @@
 # This configuration enables automatic on-demand scale-down when spot capacity is restored
 
 ## Basic Configuration
-enableSqsTerminationDraining: true
-queueURL: https://sqs.us-east-1.amazonaws.com/123456789012/my-termination-queue
+# enableSqsTerminationDraining: true
+# queueURL: https://sqs.us-east-1.amazonaws.com/123456789012/my-termination-queue
+
+image:
+  repository: public.ecr.aws/aws-ec2/aws-node-termination-handler
+  # Overrides the image tag whose default is {{ printf "v%s" .Chart.AppVersion }}
+  tag: ""
+  pullPolicy: IfNotPresent
+  pullSecrets: []
 
 ## Spot Guard Configuration
 spotGuard:
