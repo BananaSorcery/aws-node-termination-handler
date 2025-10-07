@@ -317,3 +317,5 @@ Your AWS Node Termination Handler now has full Spot Guard capabilities. The impl
 
 **Next Step**: Build, test, and deploy! Start with the Quick Start guide.
 
+**Quick Start**: [docs/SPOT_GUARD_QUICKSTART.md](docs/SPOT_GUARD_QUICKSTART.md)
+
