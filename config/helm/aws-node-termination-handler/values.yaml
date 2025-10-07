@@ -306,16 +306,16 @@ metadataTries: 3
 enableSpotInterruptionDraining: true
 
 # enableASGLifecycleDraining If false, do not drain nodes when ASG target lifecycle state Terminated is received. Only used in IMDS mode.
-enableASGLifecycleDraining: true
+enableASGLifecycleDraining: false
 
 # enableScheduledEventDraining If false, do not drain nodes before the maintenance window starts for an EC2 instance scheduled event. Only used in IMDS mode.
-enableScheduledEventDraining: true
+enableScheduledEventDraining: false
 
 # enableRebalanceMonitoring If true, cordon nodes when the rebalance recommendation notice is received. Only used in IMDS mode.
-enableRebalanceMonitoring: false
+enableRebalanceMonitoring: true
 
 # enableRebalanceDraining If true, drain nodes when the rebalance recommendation notice is received. Only used in IMDS mode.
-enableRebalanceDraining: false
+enableRebalanceDraining: true
 
 # deleteSqsMsgIfNodeNotFound If true, delete the SQS Message from the SQS Queue if the targeted node(s) are not found. Only used in Queue Processor mode.
 deleteSqsMsgIfNodeNotFound: false
