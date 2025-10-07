@@ -254,7 +254,7 @@ env:
 - name: ENABLE_REBALANCE_DRAINING
   value: "true"
 - name: AWS_REGION
-  value: "us-east-1"
+  value: "us-west-2"
 - name: LOG_LEVEL
   value: "info"
 ```

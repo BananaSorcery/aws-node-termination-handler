@@ -199,7 +199,7 @@ DEBUG Starting pod safety check for node drain
 DEBUG Retrieved node details
       node=ip-10-0-1-100
       instanceType=m5.xlarge
-      zone=us-east-1a
+      zone=us-west-2a
 
 DEBUG Checking pod safety for node drain
       node=ip-10-0-1-100

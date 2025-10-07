@@ -3,7 +3,7 @@
 
 # Global configuration
 global:
-  region: us-east-1
+  region: us-west-2
 
 # Image configuration
 image:

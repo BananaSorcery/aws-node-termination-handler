@@ -43,7 +43,7 @@ export ON_DEMAND_ASG_NAME="your-ondemand-asg-name"
 export SPOT_GUARD_SCALE_TIMEOUT=120
 export SPOT_GUARD_CAPACITY_CHECK_TIMEOUT=120
 export ENABLE_REBALANCE_MONITORING=true
-export AWS_REGION="us-east-1"  # Your region
+export AWS_REGION="us-west-2"  # Your region
 export NODE_NAME=$(hostname)
 export DRY_RUN=false
 ```
@@ -104,7 +104,7 @@ spec:
         - name: ENABLE_REBALANCE_DRAINING
           value: "true"
         - name: AWS_REGION
-          value: "us-east-1"
+          value: "us-west-2"
         - name: LOG_LEVEL
           value: "info"
 ```

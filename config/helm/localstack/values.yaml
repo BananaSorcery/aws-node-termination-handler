@@ -20,4 +20,4 @@ tolerations:
   - operator: "Exists"
 nodeSelector: {}
 services: "events,sqs,ec2"
-defaultRegion: "us-east-1"
+defaultRegion: "us-west-2"
