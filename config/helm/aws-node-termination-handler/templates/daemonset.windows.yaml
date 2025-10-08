@@ -162,10 +162,16 @@ spec:
               value: {{ .Values.spotGuard.spotASGName | quote }}
             - name: ON_DEMAND_ASG_NAME
               value: {{ .Values.spotGuard.onDemandASGName | quote }}
-            - name: SPOT_GUARD_SCALE_TIMEOUT
+            - name: SPOT_GUARD_CHECK_INTERVAL
+              value: {{ .Values.spotGuard.checkInterval | quote }}
+            - name: SPOT_GUARD_MINIMUM_WAIT_DURATION
               value: {{ .Values.spotGuard.minimumWaitDuration | quote }}
-            - name: SPOT_GUARD_CAPACITY_CHECK_TIMEOUT
+            - name: SPOT_GUARD_SPOT_STABILITY_DURATION
               value: {{ .Values.spotGuard.spotStabilityDuration | quote }}
+            - name: SPOT_GUARD_MAX_CLUSTER_UTILIZATION
+              value: {{ .Values.spotGuard.maxClusterUtilization | quote }}
+            - name: SPOT_GUARD_POD_EVICTION_TIMEOUT
+              value: {{ .Values.spotGuard.podEvictionTimeout | quote }}
             {{- end }}
             {{- with .Values.extraEnv }}
               {{- toYaml . | nindent 12 }}

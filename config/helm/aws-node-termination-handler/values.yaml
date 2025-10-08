@@ -107,26 +107,26 @@ spotGuard:
   # Name of the on-demand instance Auto Scaling Group (fallback)
   onDemandASGName: ""
   
-  # Minimum time to wait before considering on-demand scale-down (default: 10m)
-  minimumWaitDuration: "10m"
+  # How often to check for scale-down opportunities (in seconds, default: 30)
+  checkInterval: 30
   
-  # How often to check for scale-down opportunities (default: 30s)
-  checkInterval: "30s"
+  # Minimum time to wait before considering on-demand scale-down (in seconds, default: 600 = 10 minutes)
+  minimumWaitDuration: 600
   
-  # How long spot capacity must be stable before trusting it (default: 2m)
-  spotStabilityDuration: "2m"
+  # How long spot capacity must be stable before trusting it (in seconds, default: 120 = 2 minutes)
+  spotStabilityDuration: 120
   
   # Maximum cluster utilization percentage before scale-down (default: 75%)
   maxClusterUtilization: 75
   
-  # Maximum time to wait for pod eviction during drain (default: 5m)
-  podEvictionTimeout: "5m"
+  # Maximum time to wait for pod eviction during drain (in seconds, default: 300 = 5 minutes)
+  podEvictionTimeout: 300
   
-  # How often to cleanup old events (default: 10m)
-  cleanupInterval: "10m"
+  # How often to cleanup old events (in seconds, default: 600 = 10 minutes)
+  cleanupInterval: 600
   
-  # Maximum age of events to keep in tracking (default: 24h)
-  maxEventAge: "24h"
+  # Maximum age of events to keep in tracking (in hours, default: 24)
+  maxEventAge: 24
 
 # ignoreDaemonSets causes kubectl to skip Daemon Set managed pods.
 ignoreDaemonSets: true

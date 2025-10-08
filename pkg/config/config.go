@@ -396,6 +396,14 @@ func (c Config) PrintJsonConfigArgs() {
 		Bool("use_apiserver_cache", c.UseAPIServerCacheToListPods).
 		Int("heartbeat_interval", c.HeartbeatInterval).
 		Int("heartbeat_until", c.HeartbeatUntil).
+		Bool("enable_spot_guard", c.EnableSpotGuard).
+		Str("spot_asg_name", c.SpotAsgName).
+		Str("on_demand_asg_name", c.OnDemandAsgName).
+		Int("spot_guard_check_interval", c.SpotGuardCheckInterval).
+		Int("spot_guard_minimum_wait_duration", c.SpotGuardMinimumWaitDuration).
+		Int("spot_guard_spot_stability_duration", c.SpotGuardSpotStabilityDuration).
+		Int("spot_guard_max_cluster_utilization", c.SpotGuardMaxClusterUtilization).
+		Int("spot_guard_pod_eviction_timeout", c.SpotGuardPodEvictionTimeout).
 		Msg("aws-node-termination-handler arguments")
 }
 
@@ -450,7 +458,15 @@ func (c Config) PrintHumanConfigArgs() {
 			"\taws-endpoint: %s,\n"+
 			"\tuse-apiserver-cache: %t,\n"+
 			"\theartbeat-interval: %d,\n"+
-			"\theartbeat-until: %d\n",
+			"\theartbeat-until: %d,\n"+
+			"\tenable-spot-guard: %t,\n"+
+			"\tspot-asg-name: %s,\n"+
+			"\ton-demand-asg-name: %s,\n"+
+			"\tspot-guard-check-interval: %d,\n"+
+			"\tspot-guard-minimum-wait-duration: %d,\n"+
+			"\tspot-guard-spot-stability-duration: %d,\n"+
+			"\tspot-guard-max-cluster-utilization: %d,\n"+
+			"\tspot-guard-pod-eviction-timeout: %d\n",
 		c.DryRun,
 		c.NodeName,
 		c.PodName,
@@ -494,6 +510,14 @@ func (c Config) PrintHumanConfigArgs() {
 		c.UseAPIServerCacheToListPods,
 		c.HeartbeatInterval,
 		c.HeartbeatUntil,
+		c.EnableSpotGuard,
+		c.SpotAsgName,
+		c.OnDemandAsgName,
+		c.SpotGuardCheckInterval,
+		c.SpotGuardMinimumWaitDuration,
+		c.SpotGuardSpotStabilityDuration,
+		c.SpotGuardMaxClusterUtilization,
+		c.SpotGuardPodEvictionTimeout,
 	)
 }
 

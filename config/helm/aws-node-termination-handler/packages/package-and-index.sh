@@ -28,8 +28,8 @@ helm package $CHART_DIR
 mkdir -p $PACKAGES_DIR
 
 # Step 5: Move package to packages directory
-echo "📁 Moving package to packages directory..."
-mv *.tgz $PACKAGES_DIR/
+# echo "📁 Moving package to packages directory..."
+# mv *.tgz $PACKAGES_DIR/
 
 # Step 6: Generate index
 echo "📋 Generating index.yaml..."

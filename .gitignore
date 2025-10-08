@@ -27,3 +27,5 @@ config/helm/aws-node-termination-handler/example/yaml
 
 ### Ignore txt files ###
 *.txt
+/*.sh
+/*.md
