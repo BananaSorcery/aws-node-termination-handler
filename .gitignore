@@ -24,3 +24,6 @@ config/helm/aws-node-termination-handler/example/yaml
 /Godeps/
 /build/
 /bin/
+
+### Ignore txt files ###
+*.txt
