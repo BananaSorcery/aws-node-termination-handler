@@ -117,15 +117,6 @@ const (
 	// heartbeat
 	heartbeatIntervalKey = "HEARTBEAT_INTERVAL"
 	heartbeatUntilKey    = "HEARTBEAT_UNTIL"
-	// spot guard
-	enableSpotGuardConfigKey             = "ENABLE_SPOT_GUARD"
-	enableSpotGuardDefault               = false
-	spotAsgNameConfigKey                 = "SPOT_ASG_NAME"
-	onDemandAsgNameConfigKey             = "ON_DEMAND_ASG_NAME"
-	spotGuardScaleTimeoutConfigKey       = "SPOT_GUARD_SCALE_TIMEOUT"
-	spotGuardScaleTimeoutDefault         = 120
-	spotGuardCapacityCheckTimeoutKey     = "SPOT_GUARD_CAPACITY_CHECK_TIMEOUT"
-	spotGuardCapacityCheckTimeoutDefault = 120
 )
 
 // Config arguments set via CLI, environment variables, or defaults
@@ -183,12 +174,20 @@ type Config struct {
 	UseAPIServerCacheToListPods         bool
 	HeartbeatInterval                   int
 	HeartbeatUntil                      int
+
 	// Spot Guard configuration
-	EnableSpotGuard               bool
-	SpotAsgName                   string
-	OnDemandAsgName               string
-	SpotGuardScaleTimeout         int
-	SpotGuardCapacityCheckTimeout int
+	EnableSpotGuard                bool
+	SpotAsgName                    string
+	OnDemandAsgName                string
+	SpotGuardScaleTimeout          int
+	SpotGuardCapacityCheckTimeout  int
+	SpotGuardCheckInterval         int
+	SpotGuardMinimumWaitDuration   int
+	SpotGuardSpotStabilityDuration int
+	SpotGuardMaxClusterUtilization int
+	SpotGuardPodEvictionTimeout    int
+	SpotGuardCleanupInterval       int
+	SpotGuardMaxEventAge           int
 }
 
 // ParseCliArgs parses cli arguments and uses environment variables as fallback values
@@ -256,11 +255,21 @@ func ParseCliArgs() (config Config, err error) {
 	flag.BoolVar(&config.UseAPIServerCacheToListPods, "use-apiserver-cache", getBoolEnv(useAPIServerCache, false), "If true, leverage the k8s apiserver's index on pod's spec.nodeName to list pods on a node, instead of doing an etcd quorum read.")
 	flag.IntVar(&config.HeartbeatInterval, "heartbeat-interval", getIntEnv(heartbeatIntervalKey, -1), "The time period in seconds between consecutive heartbeat signals. Valid range: 30-3600 seconds (30 seconds to 1 hour).")
 	flag.IntVar(&config.HeartbeatUntil, "heartbeat-until", getIntEnv(heartbeatUntilKey, -1), "The duration in seconds over which heartbeat signals are sent. Valid range: 60-172800 seconds (1 minute to 48 hours).")
-	flag.BoolVar(&config.EnableSpotGuard, "enable-spot-guard", getBoolEnv(enableSpotGuardConfigKey, enableSpotGuardDefault), "If true, automatically scale up spot instances (with on-demand fallback) when rebalance recommendations are received, before tainting the node.")
-	flag.StringVar(&config.SpotAsgName, "spot-asg-name", getEnv(spotAsgNameConfigKey, ""), "The name of the spot instance Auto Scaling Group to scale up when rebalance recommendations are received. Required when enable-spot-guard is true.")
-	flag.StringVar(&config.OnDemandAsgName, "on-demand-asg-name", getEnv(onDemandAsgNameConfigKey, ""), "The name of the on-demand instance Auto Scaling Group to use as fallback when spot capacity is unavailable. Required when enable-spot-guard is true.")
-	flag.IntVar(&config.SpotGuardScaleTimeout, "spot-guard-scale-timeout", getIntEnv(spotGuardScaleTimeoutConfigKey, spotGuardScaleTimeoutDefault), "Timeout in seconds to wait for spot instance scale-up to complete before attempting on-demand fallback.")
-	flag.IntVar(&config.SpotGuardCapacityCheckTimeout, "spot-guard-capacity-check-timeout", getIntEnv(spotGuardCapacityCheckTimeoutKey, spotGuardCapacityCheckTimeoutDefault), "Timeout in seconds to wait for new instance to reach InService state.")
+
+	// Spot Guard flags
+	flag.BoolVar(&config.EnableSpotGuard, "enable-spot-guard", getBoolEnv("ENABLE_SPOT_GUARD", false), "If true, enable Spot Guard for automatic on-demand scale-down when spot capacity is restored.")
+	flag.StringVar(&config.SpotAsgName, "spot-asg-name", getEnv("SPOT_ASG_NAME", ""), "The name of the spot Auto Scaling Group to monitor.")
+	flag.StringVar(&config.OnDemandAsgName, "on-demand-asg-name", getEnv("ON_DEMAND_ASG_NAME", ""), "The name of the on-demand Auto Scaling Group to scale down.")
+	flag.IntVar(&config.SpotGuardScaleTimeout, "spot-guard-scale-timeout", getIntEnv("SPOT_GUARD_SCALE_TIMEOUT", 120), "Timeout in seconds for ASG scaling operations.")
+	flag.IntVar(&config.SpotGuardCapacityCheckTimeout, "spot-guard-capacity-check-timeout", getIntEnv("SPOT_GUARD_CAPACITY_CHECK_TIMEOUT", 120), "Timeout in seconds for waiting for new instances to reach InService state.")
+	flag.IntVar(&config.SpotGuardCheckInterval, "spot-guard-check-interval", getIntEnv("SPOT_GUARD_CHECK_INTERVAL", 30), "Interval in seconds between spot capacity health checks.")
+	flag.IntVar(&config.SpotGuardMinimumWaitDuration, "spot-guard-minimum-wait-duration", getIntEnv("SPOT_GUARD_MINIMUM_WAIT_DURATION", 600), "Minimum wait time in seconds before attempting to scale down on-demand nodes.")
+	flag.IntVar(&config.SpotGuardSpotStabilityDuration, "spot-guard-spot-stability-duration", getIntEnv("SPOT_GUARD_SPOT_STABILITY_DURATION", 120), "Duration in seconds that spot capacity must be stable before scaling down on-demand nodes.")
+	flag.IntVar(&config.SpotGuardMaxClusterUtilization, "spot-guard-max-cluster-utilization", getIntEnv("SPOT_GUARD_MAX_CLUSTER_UTILIZATION", 75), "Maximum cluster utilization percentage before allowing on-demand scale-down.")
+	flag.IntVar(&config.SpotGuardPodEvictionTimeout, "spot-guard-pod-eviction-timeout", getIntEnv("SPOT_GUARD_POD_EVICTION_TIMEOUT", 300), "Timeout in seconds for pod eviction during node drain.")
+	flag.IntVar(&config.SpotGuardCleanupInterval, "spot-guard-cleanup-interval", getIntEnv("SPOT_GUARD_CLEANUP_INTERVAL", 3600), "Interval in seconds for cleaning up old fallback events.")
+	flag.IntVar(&config.SpotGuardMaxEventAge, "spot-guard-max-event-age", getIntEnv("SPOT_GUARD_MAX_EVENT_AGE", 24), "Maximum age in hours for fallback events before cleanup.")
+
 	flag.Parse()
 
 	if isConfigProvided("pod-termination-grace-period", podTerminationGracePeriodConfigKey) && isConfigProvided("grace-period", gracePeriodConfigKey) {
@@ -326,19 +335,6 @@ func ParseCliArgs() (config Config, err error) {
 		return config, fmt.Errorf("invalid heartbeat configuration: heartbeat-interval should be less than or equal to heartbeat-until")
 	}
 
-	// Spot Guard configuration validation
-	if config.EnableSpotGuard {
-		if config.SpotAsgName == "" {
-			return config, fmt.Errorf("spot-asg-name is required when enable-spot-guard is true")
-		}
-		if config.OnDemandAsgName == "" {
-			return config, fmt.Errorf("on-demand-asg-name is required when enable-spot-guard is true")
-		}
-		if !config.EnableRebalanceMonitoring && !config.EnableRebalanceDraining {
-			return config, fmt.Errorf("enable-rebalance-monitoring or enable-rebalance-draining must be enabled when enable-spot-guard is true")
-		}
-	}
-
 	// client-go expects these to be set in env vars
 	os.Setenv(kubernetesServiceHostConfigKey, config.KubernetesServiceHost)
 	os.Setenv(kubernetesServicePortConfigKey, config.KubernetesServicePort)
@@ -400,11 +396,6 @@ func (c Config) PrintJsonConfigArgs() {
 		Bool("use_apiserver_cache", c.UseAPIServerCacheToListPods).
 		Int("heartbeat_interval", c.HeartbeatInterval).
 		Int("heartbeat_until", c.HeartbeatUntil).
-		Bool("enable_spot_guard", c.EnableSpotGuard).
-		Str("spot_asg_name", c.SpotAsgName).
-		Str("on_demand_asg_name", c.OnDemandAsgName).
-		Int("spot_guard_scale_timeout", c.SpotGuardScaleTimeout).
-		Int("spot_guard_capacity_check_timeout", c.SpotGuardCapacityCheckTimeout).
 		Msg("aws-node-termination-handler arguments")
 }
 
@@ -459,12 +450,7 @@ func (c Config) PrintHumanConfigArgs() {
 			"\taws-endpoint: %s,\n"+
 			"\tuse-apiserver-cache: %t,\n"+
 			"\theartbeat-interval: %d,\n"+
-			"\theartbeat-until: %d,\n"+
-			"\tenable-spot-guard: %t,\n"+
-			"\tspot-asg-name: %s,\n"+
-			"\ton-demand-asg-name: %s,\n"+
-			"\tspot-guard-scale-timeout: %d,\n"+
-			"\tspot-guard-capacity-check-timeout: %d\n",
+			"\theartbeat-until: %d\n",
 		c.DryRun,
 		c.NodeName,
 		c.PodName,
@@ -508,11 +494,6 @@ func (c Config) PrintHumanConfigArgs() {
 		c.UseAPIServerCacheToListPods,
 		c.HeartbeatInterval,
 		c.HeartbeatUntil,
-		c.EnableSpotGuard,
-		c.SpotAsgName,
-		c.OnDemandAsgName,
-		c.SpotGuardScaleTimeout,
-		c.SpotGuardCapacityCheckTimeout,
 	)
 }
 

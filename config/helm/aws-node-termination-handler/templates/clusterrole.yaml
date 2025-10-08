@@ -11,10 +11,10 @@ rules:
   resources:
     - nodes
   verbs:
-    - get
-    - list
-    - patch
-    - update
+    - get      # Required to read node details and annotations
+    - list     # Required to list nodes for health checks
+    - patch    # Required to cordon/uncordon nodes
+    - update   # Required to update node annotations (Spot Guard self-monitor)
 - apiGroups:
     - ""
   resources:

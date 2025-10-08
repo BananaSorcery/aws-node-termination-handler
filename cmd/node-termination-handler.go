@@ -215,6 +215,32 @@ func main() {
 				asgClient := autoscaling.New(sess)
 				spotGuardInstance = spotguard.NewSpotGuard(asgClient, &nthConfig)
 				log.Info().Msgf("Spot Guard enabled - Spot ASG: %s, On-Demand ASG: %s", nthConfig.SpotAsgName, nthConfig.OnDemandAsgName)
+
+				// Detect if this pod is running on an on-demand node
+				nodeDetector := spotguard.NewNodeDetector(imds, asgClient, clientset, nthConfig.NodeName)
+				isOnDemandNode, err := nodeDetector.IsOnDemandNode(nthConfig.OnDemandAsgName)
+				if err != nil {
+					log.Warn().
+						Err(err).
+						Str("nodeName", nthConfig.NodeName).
+						Msg("Failed to detect node type, self-monitor will not start")
+				} else if isOnDemandNode {
+					// This pod is on an on-demand node - start self-monitor
+					log.Info().
+						Str("nodeName", nthConfig.NodeName).
+						Str("onDemandASG", nthConfig.OnDemandAsgName).
+						Msg("Detected on-demand node, starting Spot Guard self-monitor")
+
+					selfMonitor := spotguard.NewSelfMonitor(asgClient, clientset, *node, nthConfig)
+					go func() {
+						log.Info().Msg("Spot Guard self-monitor started for on-demand scale-down")
+						selfMonitor.Start(context.Background())
+					}()
+				} else {
+					log.Info().
+						Str("nodeName", nthConfig.NodeName).
+						Msg("Detected spot node, self-monitor will not start (scale-up only mode)")
+				}
 			}
 
 			imdsRebalanceMonitor := rebalancerecommendation.NewRebalanceRecommendationMonitor(imds, interruptionChan, nthConfig.NodeName, spotGuardInstance)
