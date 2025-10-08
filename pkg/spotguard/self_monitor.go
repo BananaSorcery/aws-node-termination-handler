@@ -46,6 +46,7 @@ type SelfMonitor struct {
 	nodeName          string
 	spotASGName       string
 	onDemandASGName   string
+	instanceID        string
 }
 
 // NewSelfMonitor creates a new self-monitor for the current on-demand node
@@ -75,6 +76,9 @@ func NewSelfMonitor(
 		onDemandASGName:   nthConfig.OnDemandAsgName,
 	}
 
+	// Get instance ID from node
+	sm.instanceID = sm.getInstanceID()
+
 	// Load or create start time from node annotation
 	sm.startTime = sm.getOrCreateStartTime()
 
@@ -92,15 +96,22 @@ func (sm *SelfMonitor) Start(ctx context.Context) {
 	actualCheckInterval := checkInterval + jitter
 
 	log.Info().
+		Msg("ON-DEMAND NODE DETECTED - Starting Spot Guard Self-Monitor")
+	log.Info().
 		Str("nodeName", sm.nodeName).
-		Str("spotASG", sm.spotASGName).
-		Str("onDemandASG", sm.onDemandASGName).
-		Time("startTime", sm.startTime).
+		Str("instanceID", sm.instanceID).
+		Str("onDemandASG", sm.onDemandASGName)
+	log.Info().
+		Time("monitorStartTime", sm.startTime).
 		Int("minimumWaitSeconds", sm.config.SpotGuardMinimumWaitDuration).
+		Msg("On-demand node will run for at least this duration before scale-down")
+	log.Info().
 		Dur("checkInterval", checkInterval).
 		Dur("jitter", jitter).
 		Dur("actualCheckInterval", actualCheckInterval).
-		Msg("Self-monitor started for on-demand node")
+		Msg("Health check configuration")
+	log.Info().
+		Msg("Self-monitor active - will automatically scale down this on-demand node when spot capacity is healthy")
 
 	ticker := time.NewTicker(actualCheckInterval)
 	defer ticker.Stop()

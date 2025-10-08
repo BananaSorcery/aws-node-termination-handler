@@ -75,7 +75,7 @@ func (nd *NodeDetector) IsOnDemandNode(onDemandASGName string) (bool, error) {
 // detectViaASG checks if this instance is in the on-demand ASG
 func (nd *NodeDetector) detectViaASG(onDemandASGName string) (bool, error) {
 	// Get instance ID from IMDS
-	instanceID, err := nd.imds.GetMetadataInfo("instance-id", false)
+	instanceID, err := nd.imds.GetMetadataInfo("/latest/meta-data/instance-id", false)
 	if err != nil {
 		return false, fmt.Errorf("failed to get instance ID from IMDS: %w", err)
 	}

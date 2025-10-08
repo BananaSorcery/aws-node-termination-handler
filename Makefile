@@ -41,6 +41,30 @@ compile:
 	@echo ${MAKEFILE_PATH}
 	go build -a -tags nth${GOOS} -ldflags="-s -w" -o ${BUILD_DIR_PATH}/node-termination-handler ${MAKEFILE_PATH}/cmd/node-termination-handler.go
 
+compile-v1:
+	@echo "Building with GOAMD64=v1 for maximum CPU compatibility (t3a, m6a, etc.)"
+	@echo ${MAKEFILE_PATH}
+	GOAMD64=v1 go build -a -tags nth${GOOS} -ldflags="-s -w" -o ${BUILD_DIR_PATH}/node-termination-handler ${MAKEFILE_PATH}/cmd/node-termination-handler.go
+
+docker-build-v1:
+	@echo "Building v1-compatible Docker image using Dockerfile.v1-compatible"
+	docker build \
+		--file ${MAKEFILE_PATH}/Dockerfile.v1-compatible \
+		--build-arg GOPROXY=${GOPROXY} \
+		--tag ${IMG}:${IMG_TAG}-v1 \
+		--platform ${GOOS}/${GOARCH} \
+		${MAKEFILE_PATH}
+
+build-docker-images-v1:
+	@echo "Building v1-compatible multi-arch Docker images"
+	docker buildx build \
+		--file ${MAKEFILE_PATH}/Dockerfile.v1-compatible \
+		--build-arg GOPROXY=${GOPROXY} \
+		--tag ${IMG}:${IMG_TAG}-v1 \
+		--platform ${SUPPORTED_PLATFORMS_LINUX} \
+		--push \
+		${MAKEFILE_PATH}
+
 clean:
 	rm -rf ${BUILD_DIR_PATH}/
 

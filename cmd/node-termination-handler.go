@@ -228,17 +228,21 @@ func main() {
 					// This pod is on an on-demand node - start self-monitor
 					log.Info().
 						Str("nodeName", nthConfig.NodeName).
+						Str("instanceID", nodeMetadata.InstanceID).
+						Str("instanceType", nodeMetadata.InstanceType).
 						Str("onDemandASG", nthConfig.OnDemandAsgName).
 						Msg("Detected on-demand node, starting Spot Guard self-monitor")
 
 					selfMonitor := spotguard.NewSelfMonitor(asgClient, clientset, *node, nthConfig)
 					go func() {
-						log.Info().Msg("Spot Guard self-monitor started for on-demand scale-down")
+						log.Info().Msg("Spot Guard self-monitor started for on-demand node")
 						selfMonitor.Start(context.Background())
 					}()
 				} else {
 					log.Info().
 						Str("nodeName", nthConfig.NodeName).
+						Str("instanceID", nodeMetadata.InstanceID).
+						Str("instanceType", nodeMetadata.InstanceType).
 						Msg("Detected spot node, self-monitor will not start (scale-up only mode)")
 				}
 			}
