@@ -154,50 +154,41 @@ func (sm *SelfMonitor) checkAndScaleDown(ctx context.Context, minimumWaitDuratio
 		return false
 	}
 
-	// Step 2: Check if spot ASG is healthy
-	isHealthy, err := sm.healthChecker.IsSpotASGHealthy(ctx, sm.spotASGName)
+	// Step 2: Comprehensive spot ASG check (ONE API call instead of 3!)
+	stabilityDuration := time.Duration(sm.config.SpotGuardSpotStabilityDuration) * time.Second
+	status, err := sm.healthChecker.CheckSpotASGComprehensive(
+		ctx,
+		sm.spotASGName,
+		stabilityDuration,
+		sm.healthySince,
+	)
 	if err != nil {
 		log.Warn().
 			Err(err).
 			Str("spotASG", sm.spotASGName).
-			Msg("Failed to check spot ASG health")
+			Msg("Failed to perform comprehensive spot ASG check")
 		return false
 	}
-	if !isHealthy {
+
+	// Check ASG health
+	if !status.IsHealthy {
 		log.Debug().
 			Str("spotASG", sm.spotASGName).
 			Msg("Spot ASG not yet healthy")
 		return false
 	}
 
-	// Step 3: Check spot nodes readiness in Kubernetes
-	areNodesReady, err := sm.healthChecker.AreSpotNodesReady(ctx, sm.spotASGName)
-	if err != nil {
-		log.Warn().
-			Err(err).
-			Str("spotASG", sm.spotASGName).
-			Msg("Failed to check spot nodes readiness")
-		return false
-	}
-	if !areNodesReady {
+	// Check nodes readiness
+	if !status.NodesReady {
 		log.Debug().
 			Str("spotASG", sm.spotASGName).
 			Msg("Spot nodes not yet ready in Kubernetes")
 		return false
 	}
 
-	// Step 4: Check spot stability
-	stabilityDuration := time.Duration(sm.config.SpotGuardSpotStabilityDuration) * time.Second
-	isStable, newHealthySince, err := sm.healthChecker.IsSpotCapacityStable(ctx, sm.spotASGName, stabilityDuration, sm.healthySince)
-	if err != nil {
-		log.Warn().
-			Err(err).
-			Str("spotASG", sm.spotASGName).
-			Msg("Failed to check spot stability")
-		return false
-	}
-	sm.healthySince = newHealthySince // Update the healthy since time
-	if !isStable {
+	// Update and check stability
+	sm.healthySince = status.HealthySince
+	if !status.IsStable {
 		log.Debug().
 			Str("spotASG", sm.spotASGName).
 			Dur("requiredStability", stabilityDuration).
@@ -205,9 +196,27 @@ func (sm *SelfMonitor) checkAndScaleDown(ctx context.Context, minimumWaitDuratio
 		return false
 	}
 
-	// Step 5: Check if this node can be safely drained
+	// Step 3: Check if this node can be safely drained
 	canDrain, reason := sm.safetyChecker.CanSafelyDrainNode(ctx, sm.nodeName)
 	if !canDrain {
+		// Check if we should attempt pre-scale
+		if sm.config.EnablePreScale && reason == "Cluster utilization too high" {
+			log.Info().
+				Str("nodeName", sm.nodeName).
+				Str("reason", reason).
+				Msg("🚀 Cluster utilization too high, attempting smart pre-scale")
+
+			// Try pre-scale with 3-level fallback
+			preScaleSuccess := sm.attemptPreScaleWithFallback(ctx)
+			if preScaleSuccess {
+				log.Info().Msg("Pre-scale successful, will retry drain on next check cycle")
+				return false // Will retry on next cycle
+			}
+
+			log.Warn().Msg("Pre-scale failed, keeping on-demand node for now")
+			return false
+		}
+
 		log.Debug().
 			Str("nodeName", sm.nodeName).
 			Str("reason", reason).
@@ -215,7 +224,7 @@ func (sm *SelfMonitor) checkAndScaleDown(ctx context.Context, minimumWaitDuratio
 		return false
 	}
 
-	// Step 6: All conditions met - scale down THIS node
+	// Step 4: All conditions met - scale down THIS node
 	log.Info().
 		Str("nodeName", sm.nodeName).
 		Str("spotASG", sm.spotASGName).
@@ -366,4 +375,202 @@ func (sm *SelfMonitor) getInstanceID() string {
 	}
 
 	return ""
+}
+
+// attemptPreScaleWithFallback implements the 3-level safety net for pre-scaling
+func (sm *SelfMonitor) attemptPreScaleWithFallback(ctx context.Context) bool {
+	log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	log.Info().Msg("🚀 LEVEL 1: Attempting Smart Pre-Scale")
+	log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+	// Get current cluster utilization
+	currentUtilization := sm.safetyChecker.GetClusterUtilization(ctx)
+
+	log.Info().
+		Float64("currentUtilization", currentUtilization).
+		Float64("targetUtilization", float64(sm.config.PreScaleTargetUtilization)).
+		Msg("Current cluster state")
+
+	// Level 1: Attempt pre-scale
+	calc, err := sm.healthChecker.CalculatePreScaleNodes(
+		ctx,
+		sm.spotASGName,
+		sm.onDemandASGName,
+		currentUtilization,
+		float64(sm.config.PreScaleTargetUtilization),
+		sm.config.PreScaleSafetyBufferPercent,
+	)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Msg("❌ Pre-scale calculation failed")
+		return sm.attemptFallbackLevel2(ctx, currentUtilization)
+	}
+
+	if calc.AdditionalSpotNodes == 0 {
+		log.Info().Msg("✅ No additional nodes needed (already below target)")
+		return true
+	}
+
+	log.Info().
+		Int("additionalNodes", calc.AdditionalSpotNodes).
+		Int("newDesiredCapacity", calc.NodesNeeded).
+		Float64("expectedUtilization", calc.ExpectedUtilization).
+		Msg("📊 Pre-scale plan calculated")
+
+	// Scale up spot ASG
+	if err := sm.healthChecker.ScaleSpotASG(ctx, sm.spotASGName, calc.NodesNeeded); err != nil {
+		log.Error().
+			Err(err).
+			Str("spotASG", sm.spotASGName).
+			Int("desiredCapacity", calc.NodesNeeded).
+			Msg("❌ Failed to scale spot ASG")
+		return sm.attemptFallbackLevel2(ctx, currentUtilization)
+	}
+
+	log.Info().
+		Int("additionalNodes", calc.AdditionalSpotNodes).
+		Int("timeoutSeconds", sm.config.PreScaleTimeoutSeconds).
+		Msg("⏳ Waiting for new spot nodes to become ready...")
+
+	// Wait for new nodes to become ready
+	timeout := time.Duration(sm.config.PreScaleTimeoutSeconds) * time.Second
+	success := sm.waitForSpotNodesReady(ctx, calc.NodesNeeded, timeout)
+
+	if success {
+		log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		log.Info().Msg("✅ LEVEL 1 SUCCESS: Pre-scale completed successfully!")
+		log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		return true
+	}
+
+	log.Warn().
+		Dur("timeout", timeout).
+		Msg("⚠️  LEVEL 1 FAILED: Spot nodes not ready within timeout")
+
+	// Spot capacity might not be available - try fallback
+	return sm.attemptFallbackLevel2(ctx, currentUtilization)
+}
+
+// attemptFallbackLevel2 tries to drain with increased threshold
+func (sm *SelfMonitor) attemptFallbackLevel2(ctx context.Context, currentUtilization float64) bool {
+	log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	log.Info().Msg("🔄 LEVEL 2: Fallback to Increased Threshold")
+	log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+	fallbackThreshold := float64(sm.config.PreScaleFallbackThreshold)
+
+	log.Info().
+		Float64("currentUtilization", currentUtilization).
+		Float64("originalThreshold", float64(sm.config.SpotGuardMaxClusterUtilization)).
+		Float64("fallbackThreshold", fallbackThreshold).
+		Msg("Comparing utilization against increased threshold")
+
+	if currentUtilization <= fallbackThreshold {
+		log.Info().
+			Float64("currentUtilization", currentUtilization).
+			Float64("fallbackThreshold", fallbackThreshold).
+			Msg("✅ LEVEL 2 SUCCESS: Current utilization is below fallback threshold")
+		log.Info().Msg("📝 Will proceed with drain on next check cycle")
+		log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+		// Temporarily increase the threshold for the safety checker
+		sm.safetyChecker.maxUtilization = fallbackThreshold
+		return true
+	}
+
+	log.Warn().
+		Float64("currentUtilization", currentUtilization).
+		Float64("fallbackThreshold", fallbackThreshold).
+		Msg("⚠️  LEVEL 2 FAILED: Still too high even with increased threshold")
+
+	// Still too high - go to Level 3
+	return sm.attemptFallbackLevel3(ctx)
+}
+
+// attemptFallbackLevel3 keeps the on-demand node running
+func (sm *SelfMonitor) attemptFallbackLevel3(ctx context.Context) bool {
+	log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	log.Info().Msg("🛡️  LEVEL 3: Keep On-Demand Node (Safety First)")
+	log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+	backoffDuration := time.Duration(sm.config.PreScaleRetryBackoffSeconds) * time.Second
+
+	log.Warn().Msg("⚠️  Cannot safely drain on-demand node:")
+	log.Warn().Msg("   • Spot capacity unavailable or unhealthy")
+	log.Warn().Msg("   • Cluster utilization too high")
+	log.Warn().Msg("   • Draining now would risk workload disruption")
+	log.Warn().Msg("")
+	log.Warn().Msg("🛡️  Safety First: Keeping on-demand node running")
+	log.Warn().Msg("💰 Note: This costs more, but ensures reliability")
+	log.Warn().
+		Dur("retryAfter", backoffDuration).
+		Msg("⏱️  Will retry after backoff period")
+	log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+	// TODO: Could implement backoff tracking here
+	// For now, the regular check interval will retry naturally
+
+	return false
+}
+
+// waitForSpotNodesReady waits for spot nodes to reach the desired count and be ready
+func (sm *SelfMonitor) waitForSpotNodesReady(ctx context.Context, desiredCount int, timeout time.Duration) bool {
+	startTime := time.Now()
+	checkInterval := 10 * time.Second
+
+	for {
+		elapsed := time.Since(startTime)
+		if elapsed >= timeout {
+			log.Warn().
+				Dur("elapsed", elapsed).
+				Dur("timeout", timeout).
+				Msg("Timeout waiting for spot nodes to be ready")
+			return false
+		}
+
+		// Check spot ASG health
+		status, err := sm.healthChecker.CheckSpotASGComprehensive(
+			ctx,
+			sm.spotASGName,
+			30*time.Second, // Short stability check for pre-scale
+			nil,
+		)
+		if err != nil {
+			log.Warn().
+				Err(err).
+				Msg("Failed to check spot ASG status during pre-scale wait")
+			time.Sleep(checkInterval)
+			continue
+		}
+
+		// Check if we have enough healthy nodes
+		if status.IsHealthy && status.NodesReady {
+			// Count how many nodes we have
+			readyCount := len(status.InstanceIDs)
+
+			log.Debug().
+				Int("readyCount", readyCount).
+				Int("desiredCount", desiredCount).
+				Dur("elapsed", elapsed).
+				Msg("Checking spot node readiness")
+
+			if readyCount >= desiredCount {
+				log.Info().
+					Int("readyCount", readyCount).
+					Int("desiredCount", desiredCount).
+					Dur("elapsed", elapsed).
+					Msg("✅ All spot nodes are ready!")
+				return true
+			}
+		}
+
+		remaining := timeout - elapsed
+		log.Debug().
+			Dur("elapsed", elapsed).
+			Dur("remaining", remaining).
+			Msg("Waiting for spot nodes...")
+
+		time.Sleep(checkInterval)
+	}
 }

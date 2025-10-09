@@ -28,15 +28,15 @@ import (
 
 // SafetyChecker performs safety checks before scaling down on-demand nodes
 type SafetyChecker struct {
-	k8sClient                    kubernetes.Interface
-	maxClusterUtilizationPercent float64
+	k8sClient      kubernetes.Interface
+	maxUtilization float64 // Exported for pre-scale fallback
 }
 
 // NewSafetyChecker creates a new safety checker
 func NewSafetyChecker(k8sClient kubernetes.Interface, maxUtilization float64) *SafetyChecker {
 	return &SafetyChecker{
-		k8sClient:                    k8sClient,
-		maxClusterUtilizationPercent: maxUtilization,
+		k8sClient:      k8sClient,
+		maxUtilization: maxUtilization,
 	}
 }
 
@@ -339,11 +339,11 @@ func (sc *SafetyChecker) hasClusterCapacityBuffer(ctx context.Context, nodeToRem
 	log.Debug().
 		Float64("cpuUtilization", cpuUtilization).
 		Float64("memoryUtilization", memoryUtilization).
-		Float64("maxAllowed", sc.maxClusterUtilizationPercent).
+		Float64("maxAllowed", sc.maxUtilization).
 		Msg("Cluster capacity buffer check")
 
-	if maxUtilization > sc.maxClusterUtilizationPercent {
-		return false, fmt.Sprintf("cluster would be %.1f%% utilized (max allowed: %.1f%%)", maxUtilization, sc.maxClusterUtilizationPercent)
+	if maxUtilization > sc.maxUtilization {
+		return false, "Cluster utilization too high"
 	}
 
 	return true, ""
@@ -357,4 +357,54 @@ func isNodeReady(node *corev1.Node) bool {
 		}
 	}
 	return false
+}
+
+// GetClusterUtilization returns the current cluster CPU/memory utilization percentage
+func (sc *SafetyChecker) GetClusterUtilization(ctx context.Context) float64 {
+	nodes, err := sc.k8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to list nodes for utilization check")
+		return 100.0 // Conservative: assume high utilization if we can't check
+	}
+
+	pods, err := sc.k8sClient.CoreV1().Pods("").List(ctx, metav1.ListOptions{
+		FieldSelector: "status.phase=Running",
+	})
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to list pods for utilization check")
+		return 100.0 // Conservative
+	}
+
+	var totalCPU, usedCPU int64
+	var totalMemory, usedMemory int64
+
+	// Calculate total capacity
+	for _, node := range nodes.Items {
+		if !isNodeReady(&node) {
+			continue
+		}
+		totalCPU += node.Status.Allocatable.Cpu().MilliValue()
+		totalMemory += node.Status.Allocatable.Memory().Value()
+	}
+
+	// Calculate used resources (pod requests)
+	for _, pod := range pods.Items {
+		for _, container := range pod.Spec.Containers {
+			usedCPU += container.Resources.Requests.Cpu().MilliValue()
+			usedMemory += container.Resources.Requests.Memory().Value()
+		}
+	}
+
+	if totalCPU == 0 || totalMemory == 0 {
+		return 0.0
+	}
+
+	cpuUtilization := (float64(usedCPU) / float64(totalCPU)) * 100
+	memoryUtilization := (float64(usedMemory) / float64(totalMemory)) * 100
+
+	// Return the higher of the two (most constrained resource)
+	if cpuUtilization > memoryUtilization {
+		return cpuUtilization
+	}
+	return memoryUtilization
 }

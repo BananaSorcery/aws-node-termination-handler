@@ -172,6 +172,24 @@ spec:
               value: {{ .Values.spotGuard.maxClusterUtilization | quote }}
             - name: SPOT_GUARD_POD_EVICTION_TIMEOUT
               value: {{ .Values.spotGuard.podEvictionTimeout | quote }}
+            - name: SPOT_GUARD_POD_MIGRATION_BUFFER
+              value: {{ .Values.spotGuard.podMigrationBuffer | quote }}
+            {{- if .Values.spotGuard.enablePreScale }}
+            - name: ENABLE_PRE_SCALE
+              value: "true"
+            - name: PRE_SCALE_TIMEOUT_SECONDS
+              value: {{ .Values.spotGuard.preScaleTimeout | quote }}
+            - name: PRE_SCALE_TARGET_UTILIZATION
+              value: {{ .Values.spotGuard.preScaleTargetUtilization | quote }}
+            - name: PRE_SCALE_SAFETY_BUFFER_PERCENT
+              value: {{ .Values.spotGuard.preScaleSafetyBuffer | quote }}
+            - name: PRE_SCALE_FAILURE_FALLBACK
+              value: {{ .Values.spotGuard.preScaleFailureFallback | quote }}
+            - name: PRE_SCALE_FALLBACK_THRESHOLD
+              value: {{ .Values.spotGuard.preScaleFallbackThreshold | quote }}
+            - name: PRE_SCALE_RETRY_BACKOFF_SECONDS
+              value: {{ .Values.spotGuard.preScaleRetryBackoff | quote }}
+            {{- end }}
             {{- end }}
             - name: UPTIME_FROM_FILE
               value: {{ .Values.procUptimeFile | quote }}

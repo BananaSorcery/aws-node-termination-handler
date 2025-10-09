@@ -188,6 +188,16 @@ type Config struct {
 	SpotGuardPodEvictionTimeout    int
 	SpotGuardCleanupInterval       int
 	SpotGuardMaxEventAge           int
+	SpotGuardPodMigrationBuffer    int
+
+	// Pre-scale configuration
+	EnablePreScale              bool
+	PreScaleTimeoutSeconds      int
+	PreScaleTargetUtilization   int
+	PreScaleSafetyBufferPercent int
+	PreScaleFailureFallback     string
+	PreScaleFallbackThreshold   int
+	PreScaleRetryBackoffSeconds int
 }
 
 // ParseCliArgs parses cli arguments and uses environment variables as fallback values
@@ -269,6 +279,16 @@ func ParseCliArgs() (config Config, err error) {
 	flag.IntVar(&config.SpotGuardPodEvictionTimeout, "spot-guard-pod-eviction-timeout", getIntEnv("SPOT_GUARD_POD_EVICTION_TIMEOUT", 300), "Timeout in seconds for pod eviction during node drain.")
 	flag.IntVar(&config.SpotGuardCleanupInterval, "spot-guard-cleanup-interval", getIntEnv("SPOT_GUARD_CLEANUP_INTERVAL", 3600), "Interval in seconds for cleaning up old fallback events.")
 	flag.IntVar(&config.SpotGuardMaxEventAge, "spot-guard-max-event-age", getIntEnv("SPOT_GUARD_MAX_EVENT_AGE", 24), "Maximum age in hours for fallback events before cleanup.")
+	flag.IntVar(&config.SpotGuardPodMigrationBuffer, "spot-guard-pod-migration-buffer", getIntEnv("SPOT_GUARD_POD_MIGRATION_BUFFER", 180), "Buffer time in seconds for pod migration after on-demand node drain (added to protection duration).")
+
+	// Pre-scale flags
+	flag.BoolVar(&config.EnablePreScale, "enable-pre-scale", getBoolEnv("ENABLE_PRE_SCALE", false), "If true, enable smart pre-scaling of spot ASG when cluster utilization is too high.")
+	flag.IntVar(&config.PreScaleTimeoutSeconds, "pre-scale-timeout-seconds", getIntEnv("PRE_SCALE_TIMEOUT_SECONDS", 300), "Maximum time in seconds to wait for pre-scale nodes to become ready.")
+	flag.IntVar(&config.PreScaleTargetUtilization, "pre-scale-target-utilization", getIntEnv("PRE_SCALE_TARGET_UTILIZATION", 65), "Target cluster utilization percentage after pre-scaling.")
+	flag.IntVar(&config.PreScaleSafetyBufferPercent, "pre-scale-safety-buffer-percent", getIntEnv("PRE_SCALE_SAFETY_BUFFER_PERCENT", 10), "Safety buffer percentage for pre-scale node calculation (e.g., 10 for 10% extra nodes).")
+	flag.StringVar(&config.PreScaleFailureFallback, "pre-scale-failure-fallback", getEnv("PRE_SCALE_FAILURE_FALLBACK", "increase_threshold"), "Fallback strategy when pre-scale fails: 'increase_threshold', 'wait', or 'keep_ondemand'.")
+	flag.IntVar(&config.PreScaleFallbackThreshold, "pre-scale-fallback-threshold", getIntEnv("PRE_SCALE_FALLBACK_THRESHOLD", 95), "Cluster utilization threshold percentage for fallback if pre-scale fails.")
+	flag.IntVar(&config.PreScaleRetryBackoffSeconds, "pre-scale-retry-backoff-seconds", getIntEnv("PRE_SCALE_RETRY_BACKOFF_SECONDS", 600), "Minimum time in seconds to wait before retrying pre-scale after a failure.")
 
 	flag.Parse()
 
@@ -404,6 +424,14 @@ func (c Config) PrintJsonConfigArgs() {
 		Int("spot_guard_spot_stability_duration", c.SpotGuardSpotStabilityDuration).
 		Int("spot_guard_max_cluster_utilization", c.SpotGuardMaxClusterUtilization).
 		Int("spot_guard_pod_eviction_timeout", c.SpotGuardPodEvictionTimeout).
+		Int("spot_guard_pod_migration_buffer", c.SpotGuardPodMigrationBuffer).
+		Bool("enable_pre_scale", c.EnablePreScale).
+		Int("pre_scale_timeout_seconds", c.PreScaleTimeoutSeconds).
+		Int("pre_scale_target_utilization", c.PreScaleTargetUtilization).
+		Int("pre_scale_safety_buffer_percent", c.PreScaleSafetyBufferPercent).
+		Str("pre_scale_failure_fallback", c.PreScaleFailureFallback).
+		Int("pre_scale_fallback_threshold", c.PreScaleFallbackThreshold).
+		Int("pre_scale_retry_backoff_seconds", c.PreScaleRetryBackoffSeconds).
 		Msg("aws-node-termination-handler arguments")
 }
 
@@ -466,7 +494,15 @@ func (c Config) PrintHumanConfigArgs() {
 			"\tspot-guard-minimum-wait-duration: %d,\n"+
 			"\tspot-guard-spot-stability-duration: %d,\n"+
 			"\tspot-guard-max-cluster-utilization: %d,\n"+
-			"\tspot-guard-pod-eviction-timeout: %d\n",
+			"\tspot-guard-pod-eviction-timeout: %d,\n"+
+			"\tspot-guard-pod-migration-buffer: %d,\n"+
+			"\tenable-pre-scale: %t,\n"+
+			"\tpre-scale-timeout-seconds: %d,\n"+
+			"\tpre-scale-target-utilization: %d,\n"+
+			"\tpre-scale-safety-buffer-percent: %d,\n"+
+			"\tpre-scale-failure-fallback: %s,\n"+
+			"\tpre-scale-fallback-threshold: %d,\n"+
+			"\tpre-scale-retry-backoff-seconds: %d\n",
 		c.DryRun,
 		c.NodeName,
 		c.PodName,
@@ -518,6 +554,14 @@ func (c Config) PrintHumanConfigArgs() {
 		c.SpotGuardSpotStabilityDuration,
 		c.SpotGuardMaxClusterUtilization,
 		c.SpotGuardPodEvictionTimeout,
+		c.SpotGuardPodMigrationBuffer,
+		c.EnablePreScale,
+		c.PreScaleTimeoutSeconds,
+		c.PreScaleTargetUtilization,
+		c.PreScaleSafetyBufferPercent,
+		c.PreScaleFailureFallback,
+		c.PreScaleFallbackThreshold,
+		c.PreScaleRetryBackoffSeconds,
 	)
 }
 

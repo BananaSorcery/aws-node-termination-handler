@@ -91,7 +91,7 @@ go install github.com/aws/amazon-ec2-spot-interrupter@latest
 INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
 
 # Test rebalance recommendation
-ec2-spot-interrupter -d 5m --instance-ids i-00ce85add95cbe2b1
+ec2-spot-interrupter -d 5m --instance-ids i-059916a647feeea22
 ```
 ### **Interactive Testing**
 

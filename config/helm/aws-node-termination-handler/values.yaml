@@ -127,6 +127,35 @@ spotGuard:
   
   # Maximum age of events to keep in tracking (in hours, default: 24)
   maxEventAge: 24
+  
+  # Buffer time for pod migration after drain (in seconds, default: 180 = 3 minutes)
+  # This is added to the CA protection duration to ensure pods have time to migrate
+  podMigrationBuffer: 180
+  
+  # ---------------------------------------------------------------------------------------------------------------------
+  # Smart Pre-Scale Configuration (handles high cluster utilization)
+  # ---------------------------------------------------------------------------------------------------------------------
+  
+  # Enable smart pre-scaling when cluster utilization is too high
+  enablePreScale: false
+  
+  # Maximum time to wait for pre-scale nodes to become ready (in seconds, default: 300 = 5 minutes)
+  preScaleTimeout: 300
+  
+  # Target cluster utilization after pre-scaling (percentage, default: 65%)
+  preScaleTargetUtilization: 65
+  
+  # Safety buffer percentage for node calculation (default: 10 = adds 10% extra nodes)
+  preScaleSafetyBuffer: 10
+  
+  # Fallback strategy when pre-scale fails: "increase_threshold", "wait", or "keep_ondemand"
+  preScaleFailureFallback: "increase_threshold"
+  
+  # Cluster utilization threshold for fallback if pre-scale fails (percentage, default: 95%)
+  preScaleFallbackThreshold: 95
+  
+  # Minimum time to wait before retrying pre-scale after failure (in seconds, default: 600 = 10 minutes)
+  preScaleRetryBackoff: 600
 
 # ignoreDaemonSets causes kubectl to skip Daemon Set managed pods.
 ignoreDaemonSets: true

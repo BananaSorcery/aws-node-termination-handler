@@ -244,6 +244,14 @@ func main() {
 						Str("instanceID", nodeMetadata.InstanceID).
 						Str("instanceType", nodeMetadata.InstanceType).
 						Msg("Detected spot node, self-monitor will not start (scale-up only mode)")
+
+					// Start CA protection for this spot node
+					caProtector := spotguard.NewCAProtector(clientset, nthConfig.NodeName, nthConfig)
+					go func() {
+						log.Info().
+							Msg("Starting Cluster-Autoscaler protection for spot node")
+						caProtector.Start(context.Background())
+					}()
 				}
 			}
 
