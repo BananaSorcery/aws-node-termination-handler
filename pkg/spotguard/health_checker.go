@@ -218,7 +218,6 @@ func (hc *HealthChecker) AreSpotNodesReady(ctx context.Context, asgName string) 
 				Str("node", node.Name).
 				Str("asg", asgName).
 				Msg("Spot node is cordoned (unschedulable)")
-			nodeStatuses = append(nodeStatuses, fmt.Sprintf("%s:Cordoned", node.Name))
 			return false, nil
 		}
 
@@ -246,7 +245,6 @@ func (hc *HealthChecker) AreSpotNodesReady(ctx context.Context, asgName string) 
 				Str("reason", reason).
 				Str("message", message).
 				Msg("Spot node is not ready")
-			nodeStatuses = append(nodeStatuses, fmt.Sprintf("%s:NotReady:%s", node.Name, reason))
 			return false, nil
 		}
 
@@ -629,7 +627,7 @@ func (hc *HealthChecker) CalculatePreScaleNodes(
 		Float64("currentUtilization", currentUtilization).
 		Float64("targetUtilization", targetUtilization).
 		Float64("safetyBuffer", calc.SafetyBuffer*100).
-		Msg("📊 Starting pre-scale calculation")
+		Msg("Starting pre-scale calculation")
 
 	// Get current spot ASG size
 	spotInput := &autoscaling.DescribeAutoScalingGroupsInput{
@@ -668,7 +666,7 @@ func (hc *HealthChecker) CalculatePreScaleNodes(
 		log.Info().
 			Float64("currentUtilization", currentUtilization).
 			Float64("targetUtilization", targetUtilization).
-			Msg("✅ No pre-scale needed - utilization already below target")
+			Msg("No pre-scale needed - utilization already below target")
 
 		return calc, nil
 	}
@@ -744,7 +742,7 @@ func (hc *HealthChecker) CalculatePreScaleNodes(
 		Float64("expectedUtilization", calc.ExpectedUtilization).
 		Float64("targetUtilization", targetUtilization).
 		Float64("safetyBufferPercent", calc.SafetyBuffer*100).
-		Msg("📈 Pre-scale calculation complete")
+		Msg("Pre-scale calculation complete")
 
 	return calc, nil
 }
@@ -754,7 +752,7 @@ func (hc *HealthChecker) ScaleSpotASG(ctx context.Context, asgName string, desir
 	log.Info().
 		Str("asg", asgName).
 		Int("desiredCapacity", desiredCapacity).
-		Msg("🚀 Scaling spot ASG")
+		Msg("Scaling spot ASG")
 
 	input := &autoscaling.SetDesiredCapacityInput{
 		AutoScalingGroupName: aws.String(asgName),
@@ -770,7 +768,7 @@ func (hc *HealthChecker) ScaleSpotASG(ctx context.Context, asgName string, desir
 	log.Info().
 		Str("asg", asgName).
 		Int("desiredCapacity", desiredCapacity).
-		Msg("✅ Successfully scaled spot ASG")
+		Msg("Successfully scaled spot ASG")
 
 	return nil
 }

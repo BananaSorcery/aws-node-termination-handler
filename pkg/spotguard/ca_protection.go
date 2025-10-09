@@ -28,8 +28,9 @@ const (
 	// Cluster Autoscaler annotation to prevent scale-down
 	AnnotationCAScaleDownDisabled = "cluster-autoscaler.kubernetes.io/scale-down-disabled"
 
-	// NTH annotation to track protection expiry time
-	AnnotationCAProtectedUntil = "nth.aws.amazon.com/ca-protected-until"
+	// NTH annotation to track approximate protection expiry time
+	// Note: Actual removal may be up to 5 minutes later due to check interval
+	AnnotationCAProtectedUntil = "nth.aws.amazon.com/ca-protected-until-approx"
 )
 
 // CAProtector manages Cluster Autoscaler protection for spot nodes
@@ -52,7 +53,7 @@ func NewCAProtector(clientset kubernetes.Interface, nodeName string, nthConfig c
 func (cp *CAProtector) Start(ctx context.Context) {
 	log.Info().
 		Str("nodeName", cp.nodeName).
-		Msg("🛡️  Starting Cluster Autoscaler protection for spot node")
+		Msg("Starting Cluster Autoscaler protection for spot node")
 
 	// Apply protection immediately on startup
 	cp.checkAndApplyProtection(ctx)
@@ -137,12 +138,9 @@ func (cp *CAProtector) applyProtection(ctx context.Context, node *corev1.Node, p
 		return
 	}
 
-	remaining := time.Until(protectedUntil)
 	log.Info().
 		Str("nodeName", cp.nodeName).
-		Time("protectedUntil", protectedUntil).
-		Dur("remainingDuration", remaining).
-		Msg("✅ Applied CA scale-down protection to spot node")
+		Msg("Applied CA scale-down protection to spot node")
 }
 
 // removeProtection removes CA scale-down protection from the node

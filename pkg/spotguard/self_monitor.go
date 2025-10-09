@@ -204,7 +204,7 @@ func (sm *SelfMonitor) checkAndScaleDown(ctx context.Context, minimumWaitDuratio
 			log.Info().
 				Str("nodeName", sm.nodeName).
 				Str("reason", reason).
-				Msg("🚀 Cluster utilization too high, attempting smart pre-scale")
+				Msg("Cluster utilization too high, attempting smart pre-scale")
 
 			// Try pre-scale with 3-level fallback
 			preScaleSuccess := sm.attemptPreScaleWithFallback(ctx)
@@ -380,7 +380,7 @@ func (sm *SelfMonitor) getInstanceID() string {
 // attemptPreScaleWithFallback implements the 3-level safety net for pre-scaling
 func (sm *SelfMonitor) attemptPreScaleWithFallback(ctx context.Context) bool {
 	log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	log.Info().Msg("🚀 LEVEL 1: Attempting Smart Pre-Scale")
+	log.Info().Msg("LEVEL 1: Attempting Smart Pre-Scale")
 	log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 	// Get current cluster utilization
@@ -403,12 +403,12 @@ func (sm *SelfMonitor) attemptPreScaleWithFallback(ctx context.Context) bool {
 	if err != nil {
 		log.Error().
 			Err(err).
-			Msg("❌ Pre-scale calculation failed")
+			Msg("Pre-scale calculation failed")
 		return sm.attemptFallbackLevel2(ctx, currentUtilization)
 	}
 
 	if calc.AdditionalSpotNodes == 0 {
-		log.Info().Msg("✅ No additional nodes needed (already below target)")
+		log.Info().Msg("No additional nodes needed (already below target)")
 		return true
 	}
 
@@ -416,7 +416,7 @@ func (sm *SelfMonitor) attemptPreScaleWithFallback(ctx context.Context) bool {
 		Int("additionalNodes", calc.AdditionalSpotNodes).
 		Int("newDesiredCapacity", calc.NodesNeeded).
 		Float64("expectedUtilization", calc.ExpectedUtilization).
-		Msg("📊 Pre-scale plan calculated")
+		Msg("Pre-scale plan calculated")
 
 	// Scale up spot ASG
 	if err := sm.healthChecker.ScaleSpotASG(ctx, sm.spotASGName, calc.NodesNeeded); err != nil {
@@ -424,14 +424,14 @@ func (sm *SelfMonitor) attemptPreScaleWithFallback(ctx context.Context) bool {
 			Err(err).
 			Str("spotASG", sm.spotASGName).
 			Int("desiredCapacity", calc.NodesNeeded).
-			Msg("❌ Failed to scale spot ASG")
+			Msg("Failed to scale spot ASG")
 		return sm.attemptFallbackLevel2(ctx, currentUtilization)
 	}
 
 	log.Info().
 		Int("additionalNodes", calc.AdditionalSpotNodes).
 		Int("timeoutSeconds", sm.config.PreScaleTimeoutSeconds).
-		Msg("⏳ Waiting for new spot nodes to become ready...")
+		Msg("Waiting for new spot nodes to become ready...")
 
 	// Wait for new nodes to become ready
 	timeout := time.Duration(sm.config.PreScaleTimeoutSeconds) * time.Second
@@ -439,14 +439,14 @@ func (sm *SelfMonitor) attemptPreScaleWithFallback(ctx context.Context) bool {
 
 	if success {
 		log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-		log.Info().Msg("✅ LEVEL 1 SUCCESS: Pre-scale completed successfully!")
+		log.Info().Msg("LEVEL 1 SUCCESS: Pre-scale completed successfully!")
 		log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 		return true
 	}
 
 	log.Warn().
 		Dur("timeout", timeout).
-		Msg("⚠️  LEVEL 1 FAILED: Spot nodes not ready within timeout")
+		Msg("LEVEL 1 FAILED: Spot nodes not ready within timeout")
 
 	// Spot capacity might not be available - try fallback
 	return sm.attemptFallbackLevel2(ctx, currentUtilization)
@@ -455,7 +455,7 @@ func (sm *SelfMonitor) attemptPreScaleWithFallback(ctx context.Context) bool {
 // attemptFallbackLevel2 tries to drain with increased threshold
 func (sm *SelfMonitor) attemptFallbackLevel2(ctx context.Context, currentUtilization float64) bool {
 	log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	log.Info().Msg("🔄 LEVEL 2: Fallback to Increased Threshold")
+	log.Info().Msg(" LEVEL 2: Fallback to Increased Threshold")
 	log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 	fallbackThreshold := float64(sm.config.PreScaleFallbackThreshold)
@@ -470,8 +470,8 @@ func (sm *SelfMonitor) attemptFallbackLevel2(ctx context.Context, currentUtiliza
 		log.Info().
 			Float64("currentUtilization", currentUtilization).
 			Float64("fallbackThreshold", fallbackThreshold).
-			Msg("✅ LEVEL 2 SUCCESS: Current utilization is below fallback threshold")
-		log.Info().Msg("📝 Will proceed with drain on next check cycle")
+			Msg("LEVEL 2 SUCCESS: Current utilization is below fallback threshold")
+		log.Info().Msg("Will proceed with drain on next check cycle")
 		log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 		// Temporarily increase the threshold for the safety checker
@@ -482,7 +482,7 @@ func (sm *SelfMonitor) attemptFallbackLevel2(ctx context.Context, currentUtiliza
 	log.Warn().
 		Float64("currentUtilization", currentUtilization).
 		Float64("fallbackThreshold", fallbackThreshold).
-		Msg("⚠️  LEVEL 2 FAILED: Still too high even with increased threshold")
+		Msg(" LEVEL 2 FAILED: Still too high even with increased threshold")
 
 	// Still too high - go to Level 3
 	return sm.attemptFallbackLevel3(ctx)
@@ -491,21 +491,21 @@ func (sm *SelfMonitor) attemptFallbackLevel2(ctx context.Context, currentUtiliza
 // attemptFallbackLevel3 keeps the on-demand node running
 func (sm *SelfMonitor) attemptFallbackLevel3(ctx context.Context) bool {
 	log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	log.Info().Msg("🛡️  LEVEL 3: Keep On-Demand Node (Safety First)")
+	log.Info().Msg("  LEVEL 3: Keep On-Demand Node (Safety First)")
 	log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 	backoffDuration := time.Duration(sm.config.PreScaleRetryBackoffSeconds) * time.Second
 
-	log.Warn().Msg("⚠️  Cannot safely drain on-demand node:")
+	log.Warn().Msg("  Cannot safely drain on-demand node:")
 	log.Warn().Msg("   • Spot capacity unavailable or unhealthy")
 	log.Warn().Msg("   • Cluster utilization too high")
 	log.Warn().Msg("   • Draining now would risk workload disruption")
 	log.Warn().Msg("")
-	log.Warn().Msg("🛡️  Safety First: Keeping on-demand node running")
-	log.Warn().Msg("💰 Note: This costs more, but ensures reliability")
+	log.Warn().Msg("  Safety First: Keeping on-demand node running")
+	log.Warn().Msg(" Note: This costs more, but ensures reliability")
 	log.Warn().
 		Dur("retryAfter", backoffDuration).
-		Msg("⏱️  Will retry after backoff period")
+		Msg("Will retry after backoff period")
 	log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 	// TODO: Could implement backoff tracking here
@@ -560,7 +560,7 @@ func (sm *SelfMonitor) waitForSpotNodesReady(ctx context.Context, desiredCount i
 					Int("readyCount", readyCount).
 					Int("desiredCount", desiredCount).
 					Dur("elapsed", elapsed).
-					Msg("✅ All spot nodes are ready!")
+					Msg("All spot nodes are ready!")
 				return true
 			}
 		}
