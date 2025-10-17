@@ -3,7 +3,31 @@ entries:
   aws-node-termination-handler:
   - apiVersion: v2
     appVersion: 1.0.0
-    created: "2025-10-09T14:43:34.680190092+07:00"
+    created: "2025-10-17T12:02:40.794624834+07:00"
+    description: A Helm chart for the AWS Node Termination Handler.
+    digest: c12ac75afbdf52eacfbfa3fd3cad6e3eeb0125bafbe66635a5ec9dc15feefa3d
+    home: https://github.com/aws/aws-node-termination-handler/
+    icon: https://raw.githubusercontent.com/aws/eks-charts/master/docs/logo/aws.png
+    keywords:
+    - aws
+    - eks
+    - ec2
+    - node-termination
+    - spot
+    kubeVersion: '>= 1.16-0'
+    maintainers:
+    - name: BananaSorcery
+      url: https://github.com/BananaSorcery
+    name: aws-node-termination-handler
+    sources:
+    - https://github.com/aws/aws-node-termination-handler/
+    type: application
+    urls:
+    - https://raw.githubusercontent.com/BananaSorcery/aws-node-termination-handler/main/config/helm/aws-node-termination-handler/packages/aws-node-termination-handler-1.0.4.tgz
+    version: 1.0.4
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2025-10-17T12:02:40.789915971+07:00"
     description: A Helm chart for the AWS Node Termination Handler.
     digest: 0dbeace0ee212722363194dc53adbc5a81f3f85d9e6e37efe47ded889e08c7d1
     home: https://github.com/aws/aws-node-termination-handler/
@@ -27,7 +51,7 @@ entries:
     version: 1.0.3
   - apiVersion: v2
     appVersion: 1.0.0
-    created: "2025-10-09T14:43:34.677872438+07:00"
+    created: "2025-10-17T12:02:40.787403594+07:00"
     description: A Helm chart for the AWS Node Termination Handler.
     digest: fc40e7dbb3e66ff0d6784eebc6394f87e049078bc8eb28404588c17121582c59
     home: https://github.com/aws/aws-node-termination-handler/
@@ -51,7 +75,7 @@ entries:
     version: 1.0.2
   - apiVersion: v2
     appVersion: 1.0.0
-    created: "2025-10-09T14:43:34.675511884+07:00"
+    created: "2025-10-17T12:02:40.785499436+07:00"
     description: A Helm chart for the AWS Node Termination Handler.
     digest: e88f12ec0a876e0b171ca01551bd8bca30a0567130319d85a2e924a62479d94a
     home: https://github.com/aws/aws-node-termination-handler/
@@ -75,7 +99,7 @@ entries:
     version: 1.0.1
   - apiVersion: v2
     appVersion: 1.0.0
-    created: "2025-10-09T14:43:34.673948691+07:00"
+    created: "2025-10-17T12:02:40.782762032+07:00"
     description: A Helm chart for the AWS Node Termination Handler.
     digest: 7275861d60128fb508ed7d8f6ccfe97346c419706963f6d7cf4da052cf34affc
     home: https://github.com/aws/aws-node-termination-handler/
@@ -97,4 +121,4 @@ entries:
     urls:
     - https://raw.githubusercontent.com/BananaSorcery/aws-node-termination-handler/main/config/helm/aws-node-termination-handler/packages/aws-node-termination-handler-1.0.0.tgz
     version: 1.0.0
-generated: "2025-10-09T14:43:34.671697095+07:00"
+generated: "2025-10-17T12:02:40.779647452+07:00"
