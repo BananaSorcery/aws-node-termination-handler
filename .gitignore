@@ -16,6 +16,7 @@
 # Output of the go build for the cmd binary
 /node-termination-handler
 
+
 ### Ignore local example yaml files ###
 config/helm/aws-node-termination-handler/example/yaml
 
@@ -29,3 +30,10 @@ config/helm/aws-node-termination-handler/example/yaml
 *.txt
 /*.sh
 /*.md
+
+### Ignore testing files ###
+/testing
+
+### Ignore cursor files ###
+.cursorignore
+.cursor

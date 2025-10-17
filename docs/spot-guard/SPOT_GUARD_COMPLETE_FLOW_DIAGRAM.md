@@ -9,7 +9,7 @@ This diagram shows the complete Spot Guard flow including both **scale-up** (whe
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                           SPOT GUARD COMPLETE FLOW                              │
-│                    (Scale-Up + Scale-Down Operations)                          │
+│                    (Scale-Up + Scale-Down Operations)                           │
 └─────────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -25,7 +25,7 @@ This diagram shows the complete Spot Guard flow including both **scale-up** (whe
 │  2. Scale Up Spot ASG (+1)                                                      │
 │     • Get current desired capacity                                              │
 │     • Set desired capacity to current + 1                                       │
-│     • Honor cooldown = false                                                    │
+│                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -80,29 +80,29 @@ This diagram shows the complete Spot Guard flow including both **scale-up** (whe
 │  7. Health Check: Is Spot ASG Healthy?                                          │
 │     • InService instances == Desired capacity                                   │
 │     • No scaling activities in progress                                         │
-│     • No recent errors or failures                                             │
+│     • No recent errors or failures                                              │
 └─────────────────────────────────────────────────────────────────────────────────┘
                           ↓
               ┌───────────┴───────────┐
               ↓                       ↓
     ┌──────────────────┐    ┌──────────────────┐
-    │  7.1 HEALTHY    │    │  7.2 UNHEALTHY   │
-    │  Spot ASG is    │    │  Spot ASG has    │
-    │  stable and     │    │  issues or       │
-    │  ready          │    │  still scaling   │
+    │  7.1 HEALTHY    │    │  7.2 UNHEALTHY    │
+    │  Spot ASG is    │    │  Spot ASG has     │
+    │  stable and     │    │  issues or        │
+    │  ready          │    │  still scaling    │
     └──────────────────┘    └──────────────────┘
               ↓                       ↓
               |            ┌──────────────────────────┐
               |            │  Continue Monitoring     │
-              |            │  Wait for stability       │
+              |            │  Wait for stability      │
               |            └──────────────────────────┘
               |                       ↓
               └───────────┬───────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │  8. Stability Check: Has Spot Been Healthy Long Enough?                         │
-│     • Spot ASG healthy for minimum duration (e.g., 2 minutes)                 │
-│     • No recent scaling activities                                               │
+│     • Spot ASG healthy for minimum duration (e.g., 2 minutes)                   │
+│     • No recent scaling activities                                              │
 │     • All spot nodes are ready in Kubernetes                                    │
 └─────────────────────────────────────────────────────────────────────────────────┘
                           ↓

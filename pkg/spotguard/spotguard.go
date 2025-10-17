@@ -48,6 +48,10 @@ func NewSpotGuard(asgClient autoscalingiface.AutoScalingAPI, nthConfig *config.C
 func (sg *SpotGuard) ScaleUpWithFallback() error {
 	log.Info().Msgf("Spot Guard: Attempting to scale up spot ASG: %s", sg.SpotAsgName)
 
+	// Mark the timestamp BEFORE scaling to detect only new failures
+	scaleStartTime := time.Now()
+	log.Debug().Msgf("Spot Guard: Marking baseline timestamp (%s) to detect only new scaling failures", scaleStartTime.Format(time.RFC3339))
+
 	// Try to scale up spot instance
 	err := sg.scaleUpASG(sg.SpotAsgName)
 	if err != nil {
@@ -56,7 +60,7 @@ func (sg *SpotGuard) ScaleUpWithFallback() error {
 	}
 
 	// Wait and check if new instance becomes InService
-	success, err := sg.waitForNewInstance(sg.SpotAsgName)
+	success, err := sg.waitForNewInstance(sg.SpotAsgName, scaleStartTime)
 	if err != nil {
 		log.Warn().Err(err).Msgf("Spot Guard: Error checking spot instance status")
 		return sg.fallbackToOnDemand()
@@ -114,7 +118,7 @@ func (sg *SpotGuard) scaleUpASG(asgName string) error {
 }
 
 // waitForNewInstance waits for a new instance to reach InService state
-func (sg *SpotGuard) waitForNewInstance(asgName string) (bool, error) {
+func (sg *SpotGuard) waitForNewInstance(asgName string, scaleStartTime time.Time) (bool, error) {
 	startTime := time.Now()
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
@@ -139,8 +143,8 @@ func (sg *SpotGuard) waitForNewInstance(asgName string) (bool, error) {
 			return true, nil
 		}
 
-		// Check for capacity issues in scaling activities
-		hasCapacityIssue, err := sg.checkForCapacityIssues(asgName)
+		// Check for capacity issues in scaling activities (only those after scaleStartTime)
+		hasCapacityIssue, err := sg.checkForCapacityIssues(asgName, scaleStartTime)
 		if err != nil {
 			log.Warn().Err(err).Msg("Spot Guard: Error checking scaling activities")
 		}
@@ -189,45 +193,81 @@ func (sg *SpotGuard) getInServiceInstanceCount(asgName string) (int, error) {
 }
 
 // checkForCapacityIssues checks recent scaling activities for capacity-related errors
-func (sg *SpotGuard) checkForCapacityIssues(asgName string) (bool, error) {
+// Only checks activities that started after scaleStartTime to avoid false positives
+func (sg *SpotGuard) checkForCapacityIssues(asgName string, scaleStartTime time.Time) (bool, error) {
 	input := &autoscaling.DescribeScalingActivitiesInput{
 		AutoScalingGroupName: aws.String(asgName),
-		MaxRecords:           aws.Int64(10),
+		MaxRecords:           aws.Int64(50), // Increased from 10 to catch more activities
 	}
 
 	output, err := sg.ASGClient.DescribeScalingActivities(input)
 	if err != nil {
+		// Check if it's a throttling error
+		if contains(err.Error(), "Throttling") || contains(err.Error(), "Rate exceeded") {
+			log.Warn().
+				Err(err).
+				Str("asgName", asgName).
+				Msg("⚠️ AWS API throttled (DescribeScalingActivities), will retry on next check cycle")
+			return false, nil // Don't fail, just skip this check
+		}
 		return false, fmt.Errorf("failed to describe scaling activities for ASG %s: %w", asgName, err)
 	}
 
+	// Only check activities that started AFTER our scale-up request
+	// Add 5-second buffer to account for clock skew and API recording delays
+	cutoffTime := scaleStartTime.Add(-5 * time.Second)
+
+	log.Debug().Msgf("Spot Guard: Checking scaling activities for %s (cutoff: %s, total activities: %d)",
+		asgName, cutoffTime.Format(time.RFC3339), len(output.Activities))
+
+	relevantActivitiesChecked := 0
+
 	// Check recent activities for capacity issues
 	for _, activity := range output.Activities {
+		// Only check activities that started after we initiated scale-up
+		activityTime := aws.TimeValue(activity.StartTime)
+		if activityTime.Before(cutoffTime) {
+			// This activity is too old, skip it
+			continue
+		}
+
+		relevantActivitiesChecked++
+
 		statusCode := aws.StringValue(activity.StatusCode)
 		description := aws.StringValue(activity.Description)
 		cause := aws.StringValue(activity.Cause)
 
 		// Look for capacity-related failures
 		if statusCode == "Failed" || statusCode == "Cancelled" {
-			log.Debug().Msgf("Spot Guard: Found failed activity - Status: %s, Description: %s, Cause: %s",
-				statusCode, description, cause)
+			log.Debug().Msgf("Spot Guard: Found failed/cancelled activity - Status: %s, Time: %s, Description: %s",
+				statusCode, activityTime.Format(time.RFC3339), description)
 
 			// Check for common capacity issue indicators
 			capacityKeywords := []string{
 				"InsufficientInstanceCapacity",
 				"Insufficient capacity",
-				"capacity",
 				"capacity-not-available",
-				"insufficient",
+				"Max spot instance count exceeded",
+				"Spot request could not be fulfilled",
+				"UnfulfillableCapacity ",
 			}
 
+			descLower := toLower(description)
+			causeLower := toLower(cause)
+
 			for _, keyword := range capacityKeywords {
-				if contains(description, keyword) || contains(cause, keyword) {
-					log.Info().Msgf("Spot Guard: Detected capacity issue in activity: %s", description)
+				keywordLower := toLower(keyword)
+				if contains(descLower, keywordLower) || contains(causeLower, keywordLower) {
+					log.Warn().Msgf("🚨 Spot Guard: Detected capacity issue (keyword: '%s') in recent activity at %s: %s",
+						keyword, activityTime.Format(time.RFC3339), description)
 					return true, nil
 				}
 			}
 		}
 	}
+
+	log.Debug().Msgf("Spot Guard: No capacity issues detected (checked %d relevant activities out of %d total)",
+		relevantActivitiesChecked, len(output.Activities))
 
 	return false, nil
 }
@@ -236,13 +276,16 @@ func (sg *SpotGuard) checkForCapacityIssues(asgName string) (bool, error) {
 func (sg *SpotGuard) fallbackToOnDemand() error {
 	log.Warn().Msgf("Spot Guard: Falling back to on-demand ASG: %s", sg.OnDemandAsgName)
 
+	// Mark timestamp for on-demand scaling
+	onDemandScaleStartTime := time.Now()
+
 	err := sg.scaleUpASG(sg.OnDemandAsgName)
 	if err != nil {
 		return fmt.Errorf("failed to scale up on-demand ASG: %w", err)
 	}
 
 	// Wait for on-demand instance
-	success, err := sg.waitForNewInstance(sg.OnDemandAsgName)
+	success, err := sg.waitForNewInstance(sg.OnDemandAsgName, onDemandScaleStartTime)
 	if err != nil {
 		return fmt.Errorf("error waiting for on-demand instance: %w", err)
 	}
@@ -253,6 +296,20 @@ func (sg *SpotGuard) fallbackToOnDemand() error {
 
 	log.Info().Msgf("Spot Guard: Successfully scaled up on-demand ASG: %s", sg.OnDemandAsgName)
 	return nil
+}
+
+// toLower converts a string to lowercase for case-insensitive comparison
+func toLower(s string) string {
+	result := make([]byte, len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= 'A' && c <= 'Z' {
+			result[i] = c + ('a' - 'A')
+		} else {
+			result[i] = c
+		}
+	}
+	return string(result)
 }
 
 // contains is a helper function to check if a string contains a substring (case-insensitive)
