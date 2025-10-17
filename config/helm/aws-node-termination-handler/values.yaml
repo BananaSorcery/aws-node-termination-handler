@@ -99,7 +99,7 @@ deleteLocalData: true
 ## Spot Guard: Automatic on-demand scale-down when spot capacity is restored
 spotGuard:
   # Enable automatic on-demand scale-down
-  enabled: false
+  enabled: true
   
   # Name of the spot instance Auto Scaling Group
   spotASGName: ""
@@ -111,7 +111,7 @@ spotGuard:
   checkInterval: 30
   
   # Minimum time to wait before considering on-demand scale-down (in seconds, default: 600 = 10 minutes)
-  minimumWaitDuration: 600
+  minimumWaitDuration: 120
   
   # How long spot capacity must be stable before trusting it (in seconds, default: 120 = 2 minutes)
   spotStabilityDuration: 120
@@ -137,7 +137,7 @@ spotGuard:
   # ---------------------------------------------------------------------------------------------------------------------
   
   # Enable smart pre-scaling when cluster utilization is too high
-  enablePreScale: false
+  enablePreScale: true
   
   # Maximum time to wait for pre-scale nodes to become ready (in seconds, default: 300 = 5 minutes)
   preScaleTimeout: 300

@@ -6,6 +6,89 @@ AWS Node Termination Handler Helm chart for Kubernetes. For more information on 
 
 - _Kubernetes_ >= v1.16
 
+## IAM Setup for Service Account (Required)
+
+AWS Node Termination Handler requires an IAM role with specific permissions to manage EC2 Auto Scaling Groups. The service account must be annotated with this IAM role ARN to work properly.
+
+### Quick Setup with Script
+
+We provide a script to automate the IAM role and policy creation:
+
+```shell
+# Set your cluster name and run the script
+cd config/helm/aws-node-termination-handler/iam
+CLUSTER_NAME=your-cluster-name ./setup-iam-role.sh
+```
+
+The script will:
+1. Auto-detect your AWS account ID and OIDC provider
+2. Create an IAM policy with required permissions (from `iam/policy.json`)
+3. Create an IAM role with proper trust relationship
+4. Attach the policy to the role
+5. Output the role ARN for use in your Helm values
+
+**Optional environment variables:**
+- `ROLE_NAME` - IAM role name (default: `aws-node-termination-handler-spot-guard`)
+- `POLICY_NAME` - IAM policy name (default: `aws-node-termination-handler-policy`)
+- `NAMESPACE` - Kubernetes namespace (default: `mdaas-engines-dev`)
+- `SERVICE_ACCOUNT_NAME` - Service account name (default: `aws-node-termination-handler`)
+- `AWS_REGION` - AWS region (default: `us-west-2`)
+
+### Manual Setup
+
+If you prefer to set up manually:
+
+1. **Create the IAM Policy** using the provided `iam/policy.json`:
+   ```shell
+   aws iam create-policy \
+       --policy-name aws-node-termination-handler-policy \
+       --policy-document file://iam/policy.json
+   ```
+
+2. **Get your cluster's OIDC provider**:
+   ```shell
+   aws eks describe-cluster --name YOUR_CLUSTER_NAME \
+       --query "cluster.identity.oidc.issuer" --output text
+   ```
+
+3. **Create the IAM Role** with trust relationship (see `iam/trust_entities.json` for reference):
+   ```shell
+   # Update iam/trust_entities.json with your:
+   # - AWS Account ID
+   # - OIDC provider ID
+   # - Namespace and service account name
+   
+   aws iam create-role \
+       --role-name aws-node-termination-handler-spot-guard \
+       --assume-role-policy-document file://iam/trust_entities.json
+   ```
+
+4. **Attach the policy to the role**:
+   ```shell
+   aws iam attach-role-policy \
+       --role-name aws-node-termination-handler-spot-guard \
+       --policy-arn arn:aws:iam::YOUR_ACCOUNT_ID:policy/aws-node-termination-handler-policy
+   ```
+
+### Required IAM Permissions
+
+The IAM policy (`iam/policy.json`) includes the following permissions:
+- `autoscaling:DescribeAutoScalingGroups`
+- `autoscaling:DescribeScalingActivities`
+- `autoscaling:SetDesiredCapacity`
+- `autoscaling:DescribeAutoScalingInstances`
+
+### Configure Helm Values
+
+After creating the IAM role, add the role ARN to your Helm values:
+
+```yaml
+serviceAccount:
+  name: aws-node-termination-handler
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::YOUR_ACCOUNT_ID:role/aws-node-termination-handler-spot-guard
+```
+
 ## Installing the Chart
 
 Before you can install the chart you will need to authenticate your Helm client.
@@ -41,6 +124,75 @@ helm uninstall --namespace kube-system aws-node-termination-handler
 ## Configuration
 
 The following tables lists the configurable parameters of the chart and their default values. These values are split up into the [common configuration](#common-configuration) shared by all AWS Node Termination Handler modes, [queue configuration](#queue-processor-mode-configuration) used when AWS Node Termination Handler is in in queue-processor mode, and [IMDS configuration](#imds-mode-configuration) used when AWS Node Termination Handler is in IMDS mode; for more information about the different modes see the project [README](https://github.com/aws/aws-node-termination-handler/blob/main/README.md).
+
+### Example: Configuring Spot Guard
+
+Spot Guard automatically manages on-demand instance scale-down when spot capacity is restored. Here's a complete example configuration:
+
+```yaml
+serviceAccount:
+  name: aws-node-termination-handler
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/aws-node-termination-handler-spot-guard
+
+awsRegion: us-west-2
+
+spotGuard:
+  enabled: true
+  enablePreScale: true
+  spotASGName: my-spot-asg
+  onDemandASGName: my-ondemand-asg
+  maxClusterUtilization: 75
+  preScaleTargetUtilization: 65
+  
+resources:
+  limits:
+    cpu: 500m
+    memory: 500Mi
+  requests:
+    cpu: 250m
+    memory: 250Mi
+```
+
+This configuration:
+- Monitors the spot ASG for capacity restoration
+- Automatically scales down on-demand instances when safe
+- Pre-scales spot instances if cluster utilization is too high
+- Maintains cluster stability by keeping utilization below 75%
+
+### Spot Guard Configuration
+
+The Spot Guard feature provides intelligent capacity management when spot instances are interrupted by AWS, optimizing costs while maintaining cluster stability.
+
+**How it works:**
+- When a spot instance receives an interruption notice, Spot Guard attempts to scale up a replacement spot instance first
+- If the new spot instance fails to launch due to insufficient capacity (InsufficientInstanceCapacity error), Spot Guard automatically falls back to scaling up an on-demand instance
+- Once spot capacity is restored and stable, Spot Guard intelligently scales down the on-demand instances to optimize costs
+
+This ensures your workloads remain running while maximizing cost savings through spot instances whenever possible. 
+
+| Parameter                                | Description                                                                                                                                                                                                                                                                                   | Default                  |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `spotGuard.enabled`                      | If `true`, enable automatic on-demand scale-down when spot capacity is restored.                                                                                                                                                                                                              | `true`                   |
+| `spotGuard.spotASGName`                  | Name of the spot instance Auto Scaling Group to monitor.                                                                                                                                                                                                                                       | `""`                     |
+| `spotGuard.onDemandASGName`              | Name of the on-demand instance Auto Scaling Group (fallback) to scale down.                                                                                                                                                                                                                   | `""`                     |
+| `spotGuard.checkInterval`                | How often to check for scale-down opportunities (in seconds).                                                                                                                                                                                                                                 | `30`                     |
+| `spotGuard.minimumWaitDuration`          | Minimum time to wait before considering on-demand scale-down (in seconds).                                                                                                                                                                                                                    | `120`                    |
+| `spotGuard.spotStabilityDuration`        | How long spot capacity must be stable before trusting it (in seconds).                                                                                                                                                                                                                        | `120`                    |
+| `spotGuard.maxClusterUtilization`        | Maximum cluster utilization percentage before scale-down. If cluster utilization exceeds this, scale-down is delayed.                                                                                                                                                                         | `75`                     |
+| `spotGuard.podEvictionTimeout`           | Maximum time to wait for pod eviction during drain (in seconds).                                                                                                                                                                                                                              | `300`                    |
+| `spotGuard.cleanupInterval`              | How often to cleanup old events (in seconds).                                                                                                                                                                                                                                                 | `600`                    |
+| `spotGuard.maxEventAge`                  | Maximum age of events to keep in tracking (in hours).                                                                                                                                                                                                                                         | `24`                     |
+| `spotGuard.podMigrationBuffer`           | Buffer time for pod migration after drain (in seconds). This is added to the CA protection duration to ensure pods have time to migrate.                                                                                                                                                      | `180`                    |
+| `spotGuard.enablePreScale`               | If `true`, enable smart pre-scaling when cluster utilization is too high before attempting scale-down.                                                                                                                                                                                        | `true`                   |
+| `spotGuard.preScaleTimeout`              | Maximum time to wait for pre-scale nodes to become ready (in seconds).                                                                                                                                                                                                                        | `300`                    |
+| `spotGuard.preScaleTargetUtilization`    | Target cluster utilization after pre-scaling (percentage). The system will add enough nodes to bring utilization down to this level.                                                                                                                                                          | `65`                     |
+| `spotGuard.preScaleSafetyBuffer`         | Safety buffer percentage for node calculation. Adds extra nodes as a buffer (e.g., 10 = adds 10% extra nodes).                                                                                                                                                                                | `10`                     |
+| `spotGuard.preScaleFailureFallback`      | Fallback strategy when pre-scale fails. Options: `"increase_threshold"` (allow higher utilization), `"wait"` (wait for more capacity), or `"keep_ondemand"` (keep on-demand instances).                                                                                                       | `"increase_threshold"`   |
+| `spotGuard.preScaleFallbackThreshold`    | Cluster utilization threshold for fallback if pre-scale fails (percentage). Only used when `preScaleFailureFallback` is `"increase_threshold"`.                                                                                                                                               | `95`                     |
+| `spotGuard.preScaleRetryBackoff`         | Minimum time to wait before retrying pre-scale after failure (in seconds).                                                                                                                                                                                                                    | `600`                    |
+
+**Note:** Spot Guard requires proper IAM permissions. See the [IAM Setup](#iam-setup-for-service-account-required) section for details.
 
 ### Common Configuration
 
