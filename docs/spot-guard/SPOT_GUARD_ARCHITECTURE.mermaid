@@ -1,0 +1,10 @@
+graph TD
+    subgraph "SPOT GUARD ARCHITECTURE: Two Parallel Systems"
+        subgraph "System 1: On Spot Nodes"
+            A["<b>CA Protector</b><br/>Protects new spot nodes from<br/>premature CA scale-down."]
+            B["<b>Rebalance Monitor</b><br/>Detects rebalance events and<br/>triggers a scale-up with fallback."]
+        end
+        subgraph "System 2: On On-Demand Nodes"
+            C["<b>Self-Monitor</b><br/>Monitors spot health and scales down<br/>this on-demand node when safe."]
+        end
+    end

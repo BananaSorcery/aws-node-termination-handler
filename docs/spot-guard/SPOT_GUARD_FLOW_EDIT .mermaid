@@ -1,0 +1,21 @@
+graph TD
+    subgraph "PHASE 1: REBALANCE DETECTION & RESPONSE"
+        A["1. IMDS Rebalance Check (Every 2s)"] -->|Recommendation Detected| B(2. Scale Up Spot Instance in Spot ASG);
+        B --> C{3. Wait for New Instance};
+    end
+
+    C -->|✅ Success: New Spot Node is InService| CA_Protect;
+    C -->|❌ Failure: Timeout or Capacity Issue| FailurePath;
+
+    subgraph "SUCCESS PATH"
+        CA_Protect["4. CA Protection (Apply 'scale-down-disabled' Annotation)"] --> SpotDrain;
+        SpotDrain[5. Taint & Drain Interrupted Spot Node] --> Success_Complete;
+        Success_Complete([✅ Spot Replacement Complete!]);
+    end
+
+    subgraph "FAILURE PATH (FALLBACK TO ON-DEMAND)"
+        FailurePath["4. Fallback: Scale Up On-Demand ASG"] --> WaitInservice;
+        WaitInservice["5. Wait for On-Demand instance to be InService"] --> FailurePath_Taint;
+        FailurePath_Taint[6. Taint & Drain Interrupted Spot Node] --> Success_Complete_Ondemand;
+        Success_Complete_Ondemand([✅ On-demand Replacement Complete!]);
+    end

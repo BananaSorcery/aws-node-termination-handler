@@ -1,0 +1,19 @@
+graph TD
+    subgraph "Decision Flow: Can We Scale Down?"
+        A[Start] --> B{"Minimum wait met? (>= 2 min)"};
+        B -- ✅ Yes --> C{"Spot ASG healthy & stable?"};
+        B -- ❌ No --> Wait["Wait & Retry"];
+
+        C -- ✅ Yes --> D{"Cluster utilization OK? (<75%)"};
+        C -- ❌ No --> Wait;
+
+        D -- ✅ Yes --> E{"Pods can migrate safely? (PDBs OK)"};
+        D -- ❌ No --> PreScale["Try Smart Pre-Scale"];
+
+        PreScale --> F{"Pre-scale successful?"};
+        F -- ✅ Yes --> E;
+        F -- ❌ No --> Wait;
+        
+        E -- ✅ Yes --> ScaleDown["✅ SCALE DOWN!"];
+        E -- ❌ No --> Wait;
+    end

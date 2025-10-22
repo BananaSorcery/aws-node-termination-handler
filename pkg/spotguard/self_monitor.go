@@ -494,7 +494,7 @@ func (sm *SelfMonitor) attemptFallbackLevel3(ctx context.Context) bool {
 	log.Info().Msg("  LEVEL 3: Keep On-Demand Node (Safety First)")
 	log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-	backoffDuration := time.Duration(sm.config.PreScaleRetryBackoffSeconds) * time.Second
+	checkInterval := time.Duration(sm.config.SpotGuardCheckInterval) * time.Second
 
 	log.Warn().Msg("  Cannot safely drain on-demand node:")
 	log.Warn().Msg("   • Spot capacity unavailable or unhealthy")
@@ -504,12 +504,9 @@ func (sm *SelfMonitor) attemptFallbackLevel3(ctx context.Context) bool {
 	log.Warn().Msg("  Safety First: Keeping on-demand node running")
 	log.Warn().Msg(" Note: This costs more, but ensures reliability")
 	log.Warn().
-		Dur("retryAfter", backoffDuration).
-		Msg("Will retry after backoff period")
+		Dur("retryAfter", checkInterval).
+		Msg("Will retry on next check cycle")
 	log.Info().Msg("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
-	// TODO: Could implement backoff tracking here
-	// For now, the regular check interval will retry naturally
 
 	return false
 }

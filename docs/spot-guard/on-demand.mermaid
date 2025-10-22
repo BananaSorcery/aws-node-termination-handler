@@ -1,0 +1,40 @@
+graph TD
+    subgraph "PHASE 1: REBALANCE DETECTION & RESPONSE"
+        A[1. IMDS Rebalance Check] -->|Recommendation Detected| B(2. Scale Up Spot ASG);
+        B --> C{3. Wait for New Instance};
+    end
+
+    C -->|✅ Success: New Spot Node is InService| SuccessPath;
+    C -->|❌ Failure: Timeout or Capacity Issue| FailurePath;
+
+    subgraph "SUCCESS PATH"
+        SuccessPath[4. Taint & Drain Interrupted Spot Node] --> Phase2_Start;
+        
+        subgraph "PHASE 2: CA PROTECTION (On New Spot Node)"
+            Phase2_Start[5. CA Protector Starts] --> Phase2_Apply["6. Apply 'scale-down-disabled' Annotation"];
+            Phase2_Apply --> Phase2_End["7. Auto-Remove Protection After Expiry"];
+            Phase2_End --> Success_Complete([✅ Spot Replacement Complete!]);
+        end
+    end
+
+    subgraph "FAILURE PATH (FALLBACK TO ON-DEMAND)"
+        FailurePath("🔄 Fallback: Scale Up On-Demand ASG") --> WaitInservice;
+        WaitInservice("🔄 Wait for On-Demand instance to be InService") --> FailurePath_Taint;
+        FailurePath_Taint[4. Taint & Drain Interrupted Spot Node] --> Phase3_Start;
+
+        subgraph "PHASE 3: SELF-MONITORING (On New On-Demand Node) (30s or 10min ?)"
+            Phase3_Start[8. Self-Monitor Starts] --> K{10. Check: Spot Health?};
+            K -- ✅ Yes --> L{11. Check: Cluster Util?};
+            K -- ❌ No Ready --> O("Recheck after 10min");
+            L -- ✅ Yes --> P{12. Check: PDBs Safe?};
+            L -- ❌ No, Too High --> M("🚀 Attempt Smart Pre-Scale");
+            M --> N{Pre-scale Enabled?};
+            N -- ✅ Yes --> CalPreScaleSpot["12. Calculate required spot instance to scale up"];
+            N -- ❌ No --> KeepOndemand["Keep on-demand instance & continue monitoring cycle"];
+            CalPreScaleSpot --> PreScaleSpot{Scale up spot instance};
+            PreScaleSpot -- ✅ Success ---> P;
+            PreScaleSpot -- ❌ Failure ---> KeepOndemand;
+            P -- ✅ Yes --> Q["13. 🎯 Scale Down This On-Demand Node"];
+            Q --> Failure_Complete([✅ Scale-Down Complete!]);
+        end
+    end

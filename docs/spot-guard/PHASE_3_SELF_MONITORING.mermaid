@@ -1,0 +1,16 @@
+graph TD
+    subgraph "PHASE 3: SELF-MONITORING (On New On-Demand Node) (30s or 10min ?)"
+        Phase3_Start[8. Self-Monitor Starts] --> K{10. Check: Spot Health?};
+        K -- ✅ Yes --> L{11. Check: Cluster Util?};
+        K -- ❌ No Ready --> O("Recheck after 10min");
+        L -- ✅ Yes --> P{12. Check: PDBs Safe?};
+        L -- ❌ No, Too High --> M("🚀 Attempt Smart Pre-Scale");
+        M --> N{Pre-scale Enabled?};
+        N -- ✅ Yes --> CalPreScaleSpot["12. Calculate required spot instance to scale up"];
+        N -- ❌ No --> KeepOndemand["Keep on-demand instance & continue monitoring cycle"];
+        CalPreScaleSpot --> PreScaleSpot{Scale up spot instance};
+        PreScaleSpot -- ✅ Success ---> P;
+        PreScaleSpot -- ❌ Failure ---> KeepOndemand;
+        P -- ✅ Yes --> Q["13. 🎯 Scale Down This On-Demand Node"];
+        Q --> Failure_Complete([✅ Scale-Down Complete!]);
+    end
