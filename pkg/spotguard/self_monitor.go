@@ -232,6 +232,21 @@ func (sm *SelfMonitor) checkAndScaleDown(ctx context.Context, minimumWaitDuratio
 		Dur("onDemandRuntime", elapsed).
 		Msg("All conditions met, initiating scale-down of this on-demand node")
 
+	// Apply execution jitter to prevent simultaneous scale-downs from multiple daemonset pods
+	// Random delay between 0-30 seconds to spread out scale-down operations
+	executionJitter := time.Duration(time.Now().UnixNano()%30) * time.Second
+	log.Info().
+		Dur("executionJitter", executionJitter).
+		Msg("Applying execution jitter to prevent simultaneous scale-downs from multiple pods")
+
+	select {
+	case <-time.After(executionJitter):
+		// Continue with scale-down
+	case <-ctx.Done():
+		log.Info().Msg("Context cancelled during execution jitter, aborting scale-down")
+		return false
+	}
+
 	// Create a fallback event for this node
 	event := &FallbackEvent{
 		EventID:              fmt.Sprintf("self-monitor-%s-%d", sm.nodeName, time.Now().Unix()),

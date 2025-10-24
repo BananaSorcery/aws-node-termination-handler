@@ -319,6 +319,24 @@ func (se *ScaleDownExecutor) decreaseASGCapacity(ctx context.Context, asgName st
 		return fmt.Errorf("failed to update ASG capacity: %w", err)
 	}
 
+	// Verify the capacity was actually updated (protection against race conditions)
+	// Wait a short time for AWS to process the update
+	time.Sleep(2 * time.Second)
+
+	verifyResult, err := se.asgClient.DescribeAutoScalingGroupsWithContext(ctx, input)
+	if err != nil {
+		log.Warn().Err(err).Str("asg", asgName).Msg("Failed to verify ASG capacity update, assuming success")
+	} else if len(verifyResult.AutoScalingGroups) > 0 {
+		verifiedDesired := aws.Int64Value(verifyResult.AutoScalingGroups[0].DesiredCapacity)
+		if verifiedDesired != newDesired {
+			log.Warn().
+				Str("asg", asgName).
+				Int64("expectedCapacity", newDesired).
+				Int64("actualCapacity", verifiedDesired).
+				Msg("ASG capacity verification mismatch - possible concurrent modification")
+		}
+	}
+
 	log.Info().
 		Str("asg", asgName).
 		Int64("oldCapacity", currentDesired).

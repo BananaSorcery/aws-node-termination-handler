@@ -179,6 +179,22 @@ func (m *Monitor) executeScaleDown(ctx context.Context, event *FallbackEvent) er
 		Dur("timeSinceFailover", time.Since(event.Timestamp)).
 		Msg("Executing on-demand scale-down")
 
+	// Apply execution jitter to prevent simultaneous scale-downs from multiple monitoring instances
+	// Random delay between 0-30 seconds to spread out scale-down operations
+	executionJitter := time.Duration(time.Now().UnixNano()%30) * time.Second
+	log.Info().
+		Str("eventID", event.EventID).
+		Dur("executionJitter", executionJitter).
+		Msg("Applying execution jitter to prevent simultaneous scale-downs")
+
+	select {
+	case <-time.After(executionJitter):
+		// Continue with scale-down
+	case <-ctx.Done():
+		log.Info().Msg("Context cancelled during execution jitter, aborting scale-down")
+		return ctx.Err()
+	}
+
 	// Mark as scale-down initiated (prevents duplicate processing)
 	m.tracker.UpdateEvent(event.EventID, func(e *FallbackEvent) {
 		e.ScaleDownInitiated = true
