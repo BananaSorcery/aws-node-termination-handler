@@ -106,9 +106,9 @@ func (sm *SelfMonitor) Start(ctx context.Context) {
 		Int("minimumWaitSeconds", sm.config.SpotGuardMinimumWaitDuration).
 		Msg("On-demand node will run for at least this duration before scale-down")
 	log.Info().
-		Dur("checkInterval", checkInterval).
-		Dur("jitter", jitter).
-		Dur("actualCheckInterval", actualCheckInterval).
+		Str("checkInterval", checkInterval.String()).
+		Str("jitter", jitter.String()).
+		Str("actualCheckInterval", actualCheckInterval.String()).
 		Msg("Health check configuration")
 	log.Info().
 		Msg("Self-monitor active - will automatically scale down this on-demand node when spot capacity is healthy")
@@ -121,13 +121,30 @@ func (sm *SelfMonitor) Start(ctx context.Context) {
 		case <-ctx.Done():
 			log.Info().Str("nodeName", sm.nodeName).Msg("Self-monitor stopped")
 			return
+
 		case <-ticker.C:
 			if sm.checkAndScaleDown(ctx, minimumWaitDuration) {
-				// Scale-down initiated successfully, monitor can exit
+				// Scale-down initiated - now verify THIS node is actually terminating
 				log.Info().
 					Str("nodeName", sm.nodeName).
-					Msg("Scale-down completed, self-monitor exiting")
-				return
+					Msg("Scale-down initiated, verifying THIS node is being terminated")
+
+				if sm.waitForThisNodeTermination(ctx) {
+					log.Info().
+						Str("nodeName", sm.nodeName).
+						Msg("THIS node is terminating, will keep monitoring until pod dies naturally")
+					// Don't exit! Let node termination kill the pod
+					// Continue loop to keep monitoring
+				} else {
+					// Verification timeout - wrong node was terminated
+					log.Warn().
+						Str("nodeName", sm.nodeName).
+						Msg("Verification timeout: THIS node still running - clearing marker to retry on next cycle")
+
+					if err := sm.clearScaleDownMarker(); err != nil {
+						log.Error().Err(err).Msg("Failed to clear scale-down marker")
+					}
+				}
 			}
 		}
 	}
@@ -283,6 +300,90 @@ func (sm *SelfMonitor) checkAndScaleDown(ctx context.Context, minimumWaitDuratio
 	return true
 }
 
+// waitForThisNodeTermination waits to verify THIS specific node is being terminated
+// Returns true if this node is confirmed to be terminating, false if timeout or wrong node terminated
+func (sm *SelfMonitor) waitForThisNodeTermination(ctx context.Context) bool {
+	maxWaitTime := 5 * time.Minute // Wait up to 5 minutes to confirm
+	checkInterval := 10 * time.Second
+	startTime := time.Now()
+
+	log.Info().
+		Str("nodeName", sm.nodeName).
+		Str("maxWaitTime", maxWaitTime.String()).
+		Msg("Waiting to confirm THIS node is being terminated...")
+
+	ticker := time.NewTicker(checkInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Info().Msg("Context cancelled during termination verification")
+			return false
+
+		case <-ticker.C:
+			elapsed := time.Since(startTime)
+
+			// Check if this node is being terminated
+			isTerminating, reason := sm.isThisNodeTerminating()
+
+			if isTerminating {
+				log.Info().
+					Str("nodeName", sm.nodeName).
+					Str("reason", reason).
+					Str("elapsed", elapsed.String()).
+					Msg("Confirmed: THIS node is being terminated")
+				return true
+			}
+
+			// Check if we've exceeded max wait time
+			if elapsed >= maxWaitTime {
+				log.Warn().
+					Str("nodeName", sm.nodeName).
+					Str("elapsed", elapsed.String()).
+					Msg("Timeout: THIS node is NOT being terminated - wrong node may have been scaled down")
+				return false
+			}
+
+			log.Debug().
+				Str("nodeName", sm.nodeName).
+				Str("elapsed", elapsed.String()).
+				Str("remaining", (maxWaitTime - elapsed).String()).
+				Msg("Still waiting for THIS node to show termination signs...")
+		}
+	}
+}
+
+// isThisNodeTerminating checks if THIS specific node is being terminated
+// Returns true and reason if node is terminating
+func (sm *SelfMonitor) isThisNodeTerminating() (bool, string) {
+	node, err := sm.clientset.CoreV1().Nodes().Get(context.Background(), sm.nodeName, metav1.GetOptions{})
+	if err != nil {
+		// If node doesn't exist, it was terminated!
+		log.Info().
+			Err(err).
+			Str("nodeName", sm.nodeName).
+			Msg("Node no longer exists - successfully terminated")
+		return true, "node deleted"
+	}
+
+	// Check 1: Node has DeletionTimestamp (Kubernetes is deleting it)
+	if node.DeletionTimestamp != nil {
+		return true, "node has DeletionTimestamp"
+	}
+
+	// NOTE: We do NOT check for cordoned/unschedulable status because:
+	// - WE cordon the node ourselves during scale-down
+	// - ASG might terminate a different node instead
+	// - Our node would stay cordoned but alive (false positive!)
+	// Only DeletionTimestamp is a reliable signal that THIS node is actually terminating
+
+	log.Debug().
+		Str("nodeName", sm.nodeName).
+		Msg("Node shows no signs of termination yet")
+	return false, ""
+}
+
 // getOrCreateStartTime loads the start time from node annotation or creates a new one
 func (sm *SelfMonitor) getOrCreateStartTime() time.Time {
 	node, err := sm.clientset.CoreV1().Nodes().Get(context.Background(), sm.nodeName, metav1.GetOptions{})
@@ -355,6 +456,28 @@ func (sm *SelfMonitor) markScaleDownInitiated() error {
 	log.Debug().
 		Str("nodeName", sm.nodeName).
 		Msg("Marked scale-down as initiated in node annotation")
+	return nil
+}
+
+// clearScaleDownMarker removes the scale-down marker to allow retry
+func (sm *SelfMonitor) clearScaleDownMarker() error {
+	node, err := sm.clientset.CoreV1().Nodes().Get(context.Background(), sm.nodeName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get node: %w", err)
+	}
+
+	if node.Annotations != nil {
+		delete(node.Annotations, AnnotationScaleDownDone)
+	}
+
+	_, err = sm.clientset.CoreV1().Nodes().Update(context.Background(), node, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to clear node annotation: %w", err)
+	}
+
+	log.Info().
+		Str("nodeName", sm.nodeName).
+		Msg("Cleared scale-down marker - retry enabled")
 	return nil
 }
 
